@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 from pynex.dd_tools import sds_with_lock_counts
 from swiftnav.ephemeris import *
-from swiftnav.single_diff import SingleDiff
+from swiftnav.observation import SingleDiff
 from swiftnav.gpstime import *
 from swiftnav.pvt import calc_PVT
 from swiftnav.track import NavigationMeasurement

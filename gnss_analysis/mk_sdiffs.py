@@ -1,9 +1,7 @@
-
-
 import pandas as pd
 import numpy as np
 from swiftnav.ephemeris import *
-from swiftnav.single_diff import SingleDiff
+from swiftnav.observation import SingleDiff
 from swiftnav.gpstime import *
 
 def construct_pyobj_eph(eph):
@@ -99,10 +97,8 @@ def main():
 
     output_table_name = 'sdiff_%s_%s' % (args.rover_name, args.base_name)
     h5[output_table_name] = merge_into_sdiffs(eph, sd_table)
-    
+
     h5.close()
 
 if __name__ == '__main__':
     main()
-
-
