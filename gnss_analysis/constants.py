@@ -22,6 +22,8 @@ MM_TO_M = 1000.
 CM_TO_M = 100.
 Q32_WIDTH = 256.
 
+# TODO(Buro): Move these constants below to
+# libswiftnav/libswiftnav-python.
 
 # Constants and settings ported from Piksi firmware
 
