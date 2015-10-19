@@ -9,7 +9,7 @@
 # EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
 
-from swiftnav.single_diff import SingleDiff
+from swiftnav.observation import SingleDiff
 import numpy as np
 import pandas as pd
 import swiftnav.almanac as sa
