@@ -373,7 +373,7 @@ def mark_warnings(t):
 
 
 def mark_obs_matching(t):
-  return prefix_match_text(t.rover_logs, "WARNING: Obs Matching:")
+  return prefix_match_text(t.rover_logs, "Obs Matching:")
 
 
 def mark_starting(t):
@@ -381,91 +381,91 @@ def mark_starting(t):
 
 
 def mark_hardfaults(t):
-  return prefix_match_text(t.rover_logs, "ERROR: HardFaultVector")
+  return prefix_match_text(t.rover_logs, "HardFaultVector")
 
 
 def mark_watchdog_reset(t):
-  return prefix_match_text(t.rover_logs, "ERROR: Piksi has reset due to a watchdog timeout")
+  return prefix_match_text(t.rover_logs, "Piksi has reset due to a watchdog timeout")
 
 
 def mark_dgnss_baseline_warning(t):
-  return prefix_match_text(t.rover_logs, "WARNING: dgnss_baseline")
+  return prefix_match_text(t.rover_logs, "dgnss_baseline")
 
 
 def mark_old_ephemeris(t):
-  return prefix_match_text(t.rover_logs, "WARNING: Using ephemeris older")
+  return prefix_match_text(t.rover_logs, "Using ephemeris older")
 
 
 def mark_prn_tow_mismatch(t):
-  return prefix_match_text(t.rover_logs, r'WARNING: PRN \d+ TOW mismatch')
+  return prefix_match_text(t.rover_logs, r'PRN \d+ TOW mismatch')
 
 
 def mark_null_acq_snr(t):
-  return prefix_match_text(t.rover_logs, r'INFO: acq: PRN \d+ found @ 0 Hz, 0 SNR')
+  return prefix_match_text(t.rover_logs, r'acq: PRN \d+ found @ 0 Hz, 0 SNR')
 
 
 def mark_no_channels_free(t):
-  return prefix_match_text(t.rover_logs, r'INFO: No channels free')
+  return prefix_match_text(t.rover_logs, r'No channels free')
 
 
 def mark_false_phase_lock(t):
-  return prefix_match_text(t.rover_logs, r'INFO: False phase lock')
+  return prefix_match_text(t.rover_logs, r'False phase lock')
 
 
 def mark_subframe_mismatch(t):
-  return prefix_match_text(t.rover_logs, r'INFO: subframe parity mismatch')
+  return prefix_match_text(t.rover_logs, r'subframe parity mismatch')
 
 
 def mark_nav_phase_flip(t):
-  return prefix_match_text(t.rover_logs, r'INFO: Nav phase flip')
+  return prefix_match_text(t.rover_logs, r'Nav phase flip')
 
 
 def mark_int_time_increase(t):
-  return prefix_match_text(t.rover_logs, r'INFO: Increasing integration time')
+  return prefix_match_text(t.rover_logs, r'Increasing integration time')
 
 
 def mark_weird(t):
-  return prefix_match_text(t.rover_logs, "INFO: IAR: \d+WARNING:")
+  return prefix_match_text(t.rover_logs, "IAR: \d+WARNING:")
 
 
 def mark_weird(t):
-  return prefix_match_text(t.rover_logs, "INFO: IAR: \d+WARNING:")
+  return prefix_match_text(t.rover_logs, "IAR: \d+WARNING:")
 
 
 def mark_dgnss_update_warn(t):
-  return prefix_match_text(t.rover_logs, "WARNING: dgnss_update")
+  return prefix_match_text(t.rover_logs, "dgnss_update")
 
 
 def mark_base_soln_warn(t):
-  return prefix_match_text(t.rover_logs, "WARNING: Error calculating base station position")
+  return prefix_match_text(t.rover_logs, "Error calculating base station position")
 
 
 def mark_packet_drop(t):
-  return prefix_match_text(t.rover_logs, "INFO: Dropped one of the observation packets")
+  return prefix_match_text(t.rover_logs, "Dropped one of the observation packets")
 
 
 def mark_sat_mask(t):
-  return prefix_match_text(t.rover_logs, "INFO: Mask")
+  return prefix_match_text(t.rover_logs, "Mask")
 
 
 def mark_prn_synced(t):
-  return prefix_match_text(t.rover_logs, "INFO: PRN \d+ synced")
+  return prefix_match_text(t.rover_logs, "PRN \d+ synced")
 
 
 def mark_pll_stress(t):
-  return prefix_match_text(t.rover_logs, "INFO: PRN \d+ PLL stress")
+  return prefix_match_text(t.rover_logs, "PRN \d+ PLL stress")
 
 
 def mark_subframe_mismatch1(t):
-  return prefix_match_text(t.rover_logs, "INFO: PRN \d+ subframe parity mismatch")
+  return prefix_match_text(t.rover_logs, "PRN \d+ subframe parity mismatch")
 
 
 def mark_acq_timeout(t):
-  return prefix_match_text(t.rover_logs, "INFO: acq: Sample load timeout")
+  return prefix_match_text(t.rover_logs, "acq: Sample load timeout")
 
 
 def mark_sat_unhealthy(t):
-  return prefix_match_text(t.rover_logs, "INFO: PRN \d+ unhealthy")
+  return prefix_match_text(t.rover_logs, "PRN \d+ unhealthy")
 
 
 def mark_ephemeris_diffs(ephemerides):
@@ -768,6 +768,10 @@ class Plotter(object):
     # Plot CPU stuff
     cpus, stacks, threads = build_thread_state(self.hitl_log)
     plot_thread_state(cpus, stacks, threads, axs[-2:], interval=(i, j))
+    # Plot UART stuff
+    latency = self.hitl_log.rover_uart_state.latency.T
+    latency = latency[['avg', 'lmin', 'lmax', 'approx_gps_time']].set_index('approx_gps_time')
+    latency.plot(logy=True, figsize=(16, 5), title='UART Observation Latency (msec)')
 
 
 #####################################################################
