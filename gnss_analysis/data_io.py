@@ -19,36 +19,35 @@ from swiftnav.pvt import calc_PVT
 from swiftnav.track import NavigationMeasurement
 
 
-def get_fst_ephs(ephs):
-  """Get a DataFrame containing the first non-NaN ephemerises for each
-  sat.
+def get_first_ephemeris(ephs):
+  """
+  Get a DataFrame containing the first non-NaN ephemeris for each satellite.
 
   Parameters
   ----------
   ephs : Panel
-    and ephemeris Panel potentially containing NaN ephemerises
+    An ephemeris Panel potentially containing NaN ephemerides.
 
   Returns
   -------
   DataFrame
-    A DataFrame whose colums are sats and rows are ephemeris fields.
+    A DataFrame whose columns are satellites and rows are ephemeris fields.
     The fields are those of the first ephemeris in the input for which
     af0 is not NaN.
-
   """
-  #TODO respect invalid/unhealthy ephemerises
+  #TODO respect invalid/unhealthy ephemerides.
   sats_to_be_found = set(ephs.minor_axis)
-  fst_ephs = dict()
+  first_ephs = dict()
   for t in ephs.items:
     df = ephs.ix[t]
     for sat in sats_to_be_found:
       col = df[sat]
       if not np.isnan(col['af0']):
-        fst_ephs[sat] = col
-  return pd.DataFrame(fst_ephs)
+        first_ephs[sat] = col
+  return pd.DataFrame(first_ephs)
 
 
-def fill_in_ephs(ephs, fst_ephs):
+def fill_in_ephs(ephs, first_ephs):
   """Fills in an ephemeris Panel so that there are no missing
   ephemerises.
 
@@ -56,7 +55,7 @@ def fill_in_ephs(ephs, fst_ephs):
   ----------
   ephs : Panel
     A Panel of ephemerises with potentially missing colums
-  fst_ephs : DataFrame
+  first_ephs : DataFrame
     A DataFrame of the first non-missing ephemerises for each satellite.
 
   Returns
@@ -68,7 +67,7 @@ def fill_in_ephs(ephs, fst_ephs):
   """
   #TODO respect invalid/unhealthy ephemerises
   new_ephs = ephs
-  prev_eph = fst_ephs
+  prev_eph = first_ephs
   for itm in ephs.iteritems():
     t = itm[0]
     df = itm[1]
@@ -215,10 +214,10 @@ def mk_sdiffs_and_abs_pos(ephs, rover_obs, base_obs):
   j = obs.transpose(1, 0, 2).join(
       rover_obs.transpose(1, 0, 2), rsuffix='_rover_obs').join(
       base_obs.transpose(1, 0, 2), rsuffix='_base_obs').transpose(1, 0, 2)
-  fst_ephs = get_fst_ephs(ephs)
-  ephs = fill_in_ephs(ephs, fst_ephs)
-  j = j.ix[:, :, [sat for sat in fst_ephs.axes[1]]]
-  if not set(j.minor_axis).issubset(set(fst_ephs.axes[1])):
+  first_ephs = get_first_ephemeris(ephs)
+  ephs = fill_in_ephs(ephs, first_ephs)
+  j = j.ix[:, :, [sat for sat in first_ephs.axes[1]]]
+  if not set(j.minor_axis).issubset(set(first_ephs.axes[1])):
     raise Exception("Not all sats with observations have ephemerises.")
   prev_lock1s = dict()
   prev_lock2s = dict()
