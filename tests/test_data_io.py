@@ -15,38 +15,75 @@ import pandas as pd
 from gnss_analysis import data_io
 
 
-def alternative_get_first_ephermeris(ephs):
+def get_first_ephemeris(ephs):
   """
-  A method which computes the first valid
-  ephermeris values in a Panel of ephermerides.
+  Get a DataFrame containing the first non-NaN ephemeris for each satellite.
+
+  Parameters
+  ----------
+  ephs : Panel
+    An ephemeris Panel potentially containing NaN ephemerides.
+
+  Returns
+  -------
+  DataFrame
+    A DataFrame whose columns are satellites and rows are ephemeris fields.
+    The fields are those of the first ephemeris in the input for which
+    af0 is not NaN.
   """
-  iter_ephs = ephs.iteritems()
-  # grab the first item and copy it
-  first = iter_ephs.next()[1].copy()
-  for _, eph in iter_ephs:
-    # if we've found valid values for all satellites, break
-    if np.all(np.isfinite(first)):
-      break
-    # fill in any nan values with values from the next eph
-    first.fillna(eph, inplace=True)
-  # make sure we didn't miss anything
-  if np.any(np.isnan(first)):
-    raise ValueError("Incomplete set of ephermerides")
-  return first
+  #TODO respect invalid/unhealthy ephemerides.
+  sats_to_be_found = set(ephs.minor_axis)
+  first_ephs = dict()
+  for t in ephs.items:
+    df = ephs.ix[t]
+    for sat in sats_to_be_found:
+      col = df[sat]
+      if not np.isnan(col['af0']):
+        first_ephs[sat] = col
+  return pd.DataFrame(first_ephs)
 
 
-def test_get_first_ephemeris(hdf5log):
+def fill_in_ephs(ephs, first_ephs):
+  """Fills in an ephemeris Panel so that there are no missing
+  ephemerises.
+
+  Parameters
+  ----------
+  ephs : Panel
+    A Panel of ephemerises with potentially missing colums
+  first_ephs : DataFrame
+    A DataFrame of the first non-missing ephemerises for each satellite.
+
+  Returns
+  -------
+  Panel
+    The same panel as input, except the missing ephemerises are filled in with
+    the most recent ephemeris if there is one, otherwise the first ephemeris.
+
+  """
+  #TODO respect invalid/unhealthy ephemerises
+  new_ephs = ephs
+  prev_eph = first_ephs
+  for itm in ephs.iteritems():
+    t = itm[0]
+    df = itm[1]
+    for sat in df.axes[1]:
+      if np.isnan(df[sat]['af0']):
+        df[sat] = prev_eph[sat]
+    prev_eph = df
+    new_ephs[t] = df
+  return new_ephs
+
+
+def test_fill_ephemeris(hdf5log):
   """
   Test the get_fst_ephs method, make sure it agrees with
   an alternative approach.
   """
   # load ephemerides from the store
   ephs = hdf5log.ephemerides
-  actual = data_io.get_first_ephemeris(ephs)
-  # the columns should be integers which correspond to
-  # satellite prn numbers.
-  assert isinstance(actual.columns, pd.core.index.Int64Index)
-  # try an alternative method and make sure they are
-  # the same.
-  expected = alternative_get_first_ephermeris(ephs)
+  actual = data_io.fill_in_ephemerides(ephs)
+  # fill the ephemerides using legacy code
+  first_ephs = get_first_ephemeris(ephs)
+  expected = fill_in_ephs(ephs, first_ephs)
   assert np.all(actual == expected)
