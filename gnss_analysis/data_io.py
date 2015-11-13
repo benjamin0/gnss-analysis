@@ -9,6 +9,7 @@
 # EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
 
+import warnings
 import pandas as pd
 import numpy as np
 from pynex.dd_tools import sds_with_lock_counts
@@ -18,6 +19,8 @@ from swiftnav.gpstime import *
 from swiftnav.pvt import calc_PVT
 from swiftnav.track import NavigationMeasurement
 
+warnings.warn("gnss_analysis.data_io will be deprecated shortly",
+              FutureWarning)
 
 def fill_in_ephemerides(ephs):
   """Fills in an ephemeris Panel so that there are no missing
@@ -181,6 +184,9 @@ def mk_sdiffs_and_abs_pos(ephs, rover_obs, base_obs):
     The base receiver's single point position.
 
   """
+  warnings.warn("mk_sdiffs_and_abs_pos has been deprecated in favor"
+                " of observations.fill_observations",
+                FutureWarning)
   ephs = ephs.ix[:, [el for el in ephs.major_axis if el != 'payload'], :]
   obs = sds_with_lock_counts(rover_obs, base_obs)
   j = obs.transpose(1, 0, 2).join(
