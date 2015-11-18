@@ -8,6 +8,8 @@ import pandas as pd
 
 from distutils import dir_util
 
+from sbp.client.loggers.json_logger import JSONLogIterator
+
 
 @pytest.fixture
 def datadir(tmpdir):
@@ -21,6 +23,12 @@ def datadir(tmpdir):
       dir_util.copy_tree(test_dir, bytes(tmpdir))
   return tmpdir
 
+@pytest.yield_fixture
+def jsonlog(datadir):
+  basename = 'serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat'
+  filename = datadir.join(basename).strpath
+  with JSONLogIterator(filename) as log:
+    yield log
 
 @pytest.yield_fixture
 def hdf5log(datadir):
