@@ -10,31 +10,23 @@
 """
 simulate.py
 
-Contains a set of utility functions that help convert log messages
-to and from sbp C-type classes and pandas DataFrames.
+Contains a set of utility functions that run through piksi log
+files and simulate the chip state which can be used to perform
+analysis and iterate on the algorithm.
 """
 
-import os
-import xray
+import time
+import logging
 import datetime
-import itertools
 import numpy as np
 import pandas as pd
 
-import sbp.piksi as piksi
-import sbp.logging as lg
-import sbp.tracking as tr
-import sbp.navigation as nav
-import sbp.acquisition as acq
 import sbp.observation as ob
 
-from sbp.utils import exclude_fields, walk_json_dict
+from sbp.utils import exclude_fields
 from swiftnav.gpstime import gpst_components2datetime
 
 import gnss_analysis.constants as c
-
-obs_index = pd.MultiIndex.from_product([['rover', 'base'], np.arange(32)],
-                                   names=['source', 'sid'])
 
 
 def time_from_message(wn, tow):
@@ -43,8 +35,8 @@ def time_from_message(wn, tow):
   of week and converts it to a TimeStamp.
   """
   # compute the time from the week number and time of week
-  time = gpst_components2datetime(wn, tow / c.MSEC_TO_SECONDS)
-  return time
+  dtime = gpst_components2datetime(wn, tow / c.MSEC_TO_SECONDS)
+  return dtime
 
 
 def get_source(msg):
@@ -54,6 +46,26 @@ def get_source(msg):
   # if the source field is 0 the source of observations is
   # from the base, otherwise  the rover.
   return 'rover' if msg.sender else 'base'
+
+
+def get_sid(msg):
+  """
+  Infer the satellite id from an sbp message (or observation).
+  This looks first for an sid attribute, then a prn attribute.
+  """
+  # does the msg have an sid attribute?
+  if hasattr(msg, 'sid'):
+    # the sbp interface changed and in some cases the
+    # satellite id is held in msg.sid.sat.
+    if hasattr(msg.sid, 'sat'):
+      return msg.sid.sat
+    else:
+      return msg.sid
+  # does the msg have a prn attribute?
+  elif hasattr(msg, 'prn'):
+    return msg.prn
+  else:
+    raise AttributeError("msg does not contain a satellite id")
 
 
 def observation_to_dataframe(msg, data):
@@ -81,12 +93,13 @@ def observation_to_dataframe(msg, data):
   # determine the source
   source = get_source(msg)
 
-  def satellite_id(obs):
-    return obs.sid if msg.msg_type is ob.SBP_MSG_OBS else obs.prn
-
   # determine the time from week number and time of week
-  time = time_from_message(msg.header.t.wn, msg.header.t.tow)
-  timestamp = (time - datetime.datetime(1970, 1, 1)).total_seconds()
+  dtime = time_from_message(msg.header.t.wn, msg.header.t.tow)
+  # converts to seconds from epoch.  This keeps all the data
+  # in the resulting DataFrame floats which makes the
+  # subsequent update steps a lot faster (since we can avoid
+  # the overhead of datetime64 logic).
+  timestamp = time.mktime(dtime.timetuple())
 
   def extract_observations(obs):
       # Convert pseudorange, carrier phase to SI units.
@@ -101,8 +114,8 @@ def observation_to_dataframe(msg, data):
       return v
 
   # Compute the indices of each of the observations
-  source_sid_pairs = [(source, satellite_id(o)) for o in msg.obs]
-  # assemble into a Multiindex
+  source_sid_pairs = [(source, get_sid(o)) for o in msg.obs]
+  # assemble into a MultiIndex
   idx = pd.MultiIndex.from_tuples(source_sid_pairs,
                                   names=['source', 'sid'])
   # Combine into a dataframe.
@@ -133,13 +146,17 @@ def ephemeris_to_dataframe(msg, data):
                           ob.MsgEphemerisDepA,
                           ob.MsgEphemerisDepB))
   # determine if the ephemeris was from the rover or base
-  source = get_source(msg)
   # determine the satellite id.
-  sid = msg.sid if msg.msg_type is ob.SBP_MSG_EPHEMERIS else msg.prn
   # if the message is healthy and valid we emit the corresponding DataFrame
   if msg.healthy == 1 and msg.valid == 1:
+    source = get_source(msg)
+    sid = get_sid(msg)
     msg = exclude_fields(msg)
-    idx = pd.MultiIndex.from_tuples([(source, sid)], names=['source', 'sid'])
+    # make sure the satellite id attribute isn't propagated
+    [msg.pop(x, None) for x in ['sid', 'prn']]
+    # create the MultiIndex and DataFrame
+    idx = pd.MultiIndex.from_tuples([(source, sid)],
+                                    names=['source', 'sid'])
     eph = pd.DataFrame(msg, index=idx)
     return eph
 
@@ -167,8 +184,11 @@ def tdcp_doppler(old, new):
   """
   # delta time in seconds
   dt = new['timestamp'] - old['timestamp']
-  # make sure dt is non-negative (perhaps this should be positive?)
+  # make sure dt is non-negative.  Sometimes this
+  # is zero ?!  In which case should we set the doppler
+  # to NaN?  Or use a previously available doppler?
   assert np.all(dt.values >= 0.)
+  # compute the rate of change of the carrier phase
   doppler = (new.L - old.L) / dt
   return doppler
 
@@ -274,5 +294,9 @@ def simulate_from_log(log):
       # TODO: process other messages
       # TODO: remove out-dated information?
       state = update_state(state, updates)
-      # yield a copy so we don't accidentally modify things.
-      yield state.copy()
+      if state is not None:
+        # yield a copy so we don't accidentally modify things.
+        yield state.copy()
+    else:
+      logging.debug("No processor available for message type %s"
+                    % type(msg))
