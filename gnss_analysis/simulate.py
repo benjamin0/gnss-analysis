@@ -27,6 +27,7 @@ import sbp.observation as ob
 from swiftnav import gpstime
 from sbp.utils import exclude_fields
 
+import log_utils
 import gnss_analysis.constants as c
 
 
@@ -215,10 +216,17 @@ def update_observation(state, msg, data):
   # get the previous observations.
   source = get_source(msg)
   prev_obs = state[source]
+  if (logging.getLogger().getEffectiveLevel() == logging.DEBUG
+      and not np.all(prev_obs.index == new_obs.index)):
+    added = set(new_obs.index.values).difference(set(prev_obs.index.values))
+    logging.debug("Added satellites, %s" % str(list(added)))
+    lost = set(prev_obs.index.values).difference(set(new_obs.index.values))
+    logging.debug("Lost satellites %s" % str(list(lost)))
   # align the previous observations to match the new_obs index.
-  obs, prev_obs = new_obs.align(prev_obs, 'left')
+  new_obs, prev_obs = new_obs.align(prev_obs, 'left')
   # update the doppler information.
   new_obs['doppler'] = tdcp_doppler(prev_obs, new_obs)
+  state[source] = new_obs
   return state
 
 
@@ -238,8 +246,11 @@ def simulate_from_log(log, initial_state=None):
 
   Parameters
   ----------
-  log : sbp.base_logger.BaseLogger
+  log : sbp.base_logger.LogIterator
     An sbp log iterator that should yield msg, data pairs.
+    NOTE!!! JSONLogIterator incorrectly iterates, so you
+    actually need to pass in JSONLogIterator().next() to
+    this method.
   initial_state : (optional) dict
     An optional dictionary containing the state at the
     beginning of logging.
@@ -267,15 +278,14 @@ def simulate_from_log(log, initial_state=None):
                             'base': pd.DataFrame(),
                             'ephemeris': pd.DataFrame()}
 
-  # what's up with iterating over log.next()?
-  for msg, data in log.next():
+  for msg, data in log_utils.complete_messages_only(log):
     if type(msg) in _processors:
       # TODO: process other messages
       state = _processors[type(msg)](state, msg, data)
-      # TODO: take care of integrity checks
-      # TODO: remove out-dated information?
       if is_rover_observation(msg) and state is not None:
         # yield a copy so we don't accidentally modify things.
+        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+            logging.debug("%d, %d" % (msg.header.t.wn, msg.header.t.tow))
         yield copy.deepcopy(state)
     else:
       logging.debug("No processor available for message type %s"

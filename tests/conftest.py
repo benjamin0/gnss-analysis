@@ -23,12 +23,18 @@ def datadir(tmpdir):
       dir_util.copy_tree(test_dir, bytes(tmpdir))
   return tmpdir
 
+
+@pytest.fixture
+def jsonlogpath(datadir):
+  basename = 'partial_serial-link-20151120-104128.log.json'
+  return datadir.join(basename).strpath
+
+
 @pytest.yield_fixture
-def jsonlog(datadir):
-  basename = 'serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat'
-  filename = datadir.join(basename).strpath
-  with JSONLogIterator(filename) as log:
+def jsonlog(jsonlogpath):
+  with JSONLogIterator(jsonlogpath) as log:
     yield log
+
 
 @pytest.yield_fixture
 def hdf5log(datadir):
