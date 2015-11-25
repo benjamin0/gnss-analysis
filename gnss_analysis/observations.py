@@ -21,17 +21,19 @@ vector refactorized later.
 
 """
 
-from gnss_analysis.constants import *
-from swiftnav.ephemeris import Ephemeris, calc_sat_state
-from swiftnav.gpstime import GpsTime
-from swiftnav.pvt import calc_PVT
-from swiftnav.single_diff import SingleDiff
-from swiftnav.track import NavigationMeasurement
+import time
 import datetime
 import numpy as np
 import pandas as pd
 import swiftnav.gpstime as gpstime
-import time
+
+from swiftnav.pvt import calc_PVT
+from swiftnav.track import NavigationMeasurement
+from swiftnav.gpstime import GpsTime
+from swiftnav.ephemeris import Ephemeris, calc_sat_state
+from swiftnav.observation import SingleDiff
+
+from gnss_analysis.constants import *
 
 ###############################################################################
 # Misc. libswiftnav object constructors

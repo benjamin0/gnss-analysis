@@ -16,7 +16,7 @@
 """
 
 from gnss_analysis.constants import MIN_SATS
-from swiftnav.single_diff import SingleDiff
+from swiftnav.observation import SingleDiff
 import numpy as np
 import pandas as pd
 import swiftnav.dgnss_management as mgmt

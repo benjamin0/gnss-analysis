@@ -18,11 +18,13 @@ import pytest
 
 
 @pytest.mark.skipif(True, reason="Fill in later!")
-def test_dgnss_sanity():
-  log_datafile \
-    = "./data/serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat"
+def test_dgnss_sanity(datadir):
+
+  log_file = "serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat"
+  log_datafile = datadir.join(log_file)
   filename = log_datafile + ".hdf5"
   assert os.path.isfile(filename)
+
   with pd.HDFStore(filename) as store:
     assert store
     assert isinstance(store.base_obs, pd.Panel)

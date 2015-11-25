@@ -29,18 +29,20 @@ def dict_approx_equal(x, y, tolerance=0.00000001):
 
 
 @pytest.mark.long
-def test_sanity(capsys):
-  """Basic integration test to validate that track regressions from
+def test_sanity(capsys, datadir):
+  """
+  Basic integration test to validate that track regressions from
   refactoring. This test can take a while. Note that for the
   timebeing, the results here are actually really quite sensitive to
-
   """
-  hdf5_filename = "data/serial-link-20150506-175750.log.json.new_fields.hdf5"
+  hdf5_filename = "serial-link-20150506-175750.log.json.new_fields.hdf5"
+  hdf5_filename = datadir.join(hdf5_filename).strpath
   is_ned = True
   measured_baseline = np.array([0.112, 1.317, -0.191])
   sitl_results = run.run(hdf5_filename, measured_baseline,
                          baseline_is_NED=is_ned)
   assert sitl_results['count'] == '7235'
+  import ipdb; ipdb.set_trace()
   assert sitl_results['FixedIARBegun']
   assert not sitl_results['FixedIARLeastSquareEndedInPool']
   assert sitl_results['FixedIARCompleted']

@@ -9,23 +9,27 @@
 # EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
 
-from gnss_analysis.tools.records2table import StoreToHDF5, hdf5_write
+import os
+import pytest
+import pandas as pd
+
 from numpy import nan
 from pandas.tslib import Timestamp
+
 from sbp.client.loggers.json_logger import JSONLogIterator
-import os
-import pandas as pd
-import pytest
+from gnss_analysis.tools.records2table import StoreToHDF5, hdf5_write
 
 
-def test_hdf5():
-  log_datafile \
-    = "./data/serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat"
-  filename = log_datafile + ".hdf5"
+def test_hdf5(datadir):
+  log_file = 'serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat'
+  log_datafile = datadir.join(log_file).strpath
+  hdf5_file = log_datafile + ".hdf5"
   processor = StoreToHDF5()
-  hdf5_write(log_datafile, filename)
-  assert os.path.isfile(filename)
-  with pd.HDFStore(filename) as store:
+  hdf5_write(log_datafile, hdf5_file)
+  # make sure the file was written
+  assert os.path.isfile(hdf5_file)
+  # check the contents of the store
+  with pd.HDFStore(hdf5_file) as store:
     assert store
     assert isinstance(store.base_obs, pd.Panel)
     assert store.base_obs.shape == (91, 6, 5)
@@ -151,20 +155,20 @@ def test_hdf5():
 
 
 @pytest.mark.skipif(True, reason="Add approx. equality test later.")
-def test_ephemeris_log():
+def test_ephemeris_log(datadir):
   """Test ephemeris data output by hdf5 tool. Will currently fail
   because we're not checking for approx. precision test.
 
   """
-  log_datafile \
-    = "./data/serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat"
-  filename = log_datafile + ".hdf5"
+  log_file = 'serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat'
+  log_datafile = datadir.join(log_file).strpath
+  hdf5_file = log_datafile + ".hdf5"
   processor = StoreToHDF5()
   with JSONLogIterator(log_datafile) as log:
     for delta, timestamp, msg in log.next():
       processor.process_message(delta, timestamp, msg)
-    processor.save(filename)
-  assert os.path.isfile(filename)
+    processor.save(hdf5_file)
+  assert os.path.isfile(hdf5_file)
   with pd.HDFStore(filename) as store:
     assert store.ephemerides[:, :, 27].to_dict() \
       == {Timestamp('2015-03-15 03:59:44'):
