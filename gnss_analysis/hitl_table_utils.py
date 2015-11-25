@@ -330,6 +330,11 @@ def mark_fixed2float(t):
   l = t.rover_rtk_ned.T[['flags']].diff().dropna()
   return l[l < 0].dropna()
 
+def mark_buffer_overrun(t):
+  return prefix_match_text(t.rover_logs, "subframe buffer overrun")
+
+def mark_raim_repair(t):
+  return prefix_match_text(t.rover_logs, "RAIM repair")
 
 def mark_flash_saves(t):
   return prefix_match_text(t.rover_logs, "INFO: Saved position to flash")
@@ -365,8 +370,7 @@ def mark_iar_add_sats(t):
 
 
 def mark_errors(t):
-  return prefix_match_text(t.rover_logs, "ERROR:")
-
+  return t.rover_logs.T[t.rover_logs.T['level']==3]
 
 def mark_warnings(t):
   return prefix_match_text(t.rover_logs, "WARNING:")
@@ -648,6 +652,7 @@ class Plotter(object):
     """
     # Setup annotations
     prn = 'sid' if 'sid' in self.hitl_log.rover_ephemerides.major_axis else 'prn'
+
     anns = [('logs', self.hitl_log.rover_logs.T['text']),
             ('log_flash', mark_flash_saves(self.hitl_log)['text']),
             ('log_trusted_eph', mark_new_trusted_ephs(self.hitl_log)['text']),
@@ -669,6 +674,8 @@ class Plotter(object):
             ('fixed2float', mark_fixed2float(self.hitl_log)['flags']),
             ('log_null_acq_snr', mark_null_acq_snr(self.hitl_log)['text']),
             ('obs_gaps', mark_obs_gaps(self.hitl_log)),
+            ('subframe_overrun', mark_buffer_overrun(self.hitl_log)['text']),
+            ('log_raim_repair', mark_raim_repair(self.hitl_log)['text']),
             ('large_fixed_error', mark_large_position_errors(self.fixed, self.ref_rtk)),
             ('large_fixed_jump', mark_large_jumps(self.fixed, self.ref_rtk)),
             ('large_float_error', mark_large_position_errors(self.float_pos, self.ref_rtk)),
