@@ -122,10 +122,10 @@ def log_iterator(log):
   # JSONLogIterator improperly uses the iter construct.
   elif isinstance(log, JSONLogIterator):
     return log.next()
-  elif isinstance(log, types.GeneratorType):
-    return log
   else:
-    raise ValueError("Unknown log type: %s" % type(log))
+  # He we aren't sure what type log is, but we trust the user
+    return log
+
 
 
 def complete_messages_only(log):

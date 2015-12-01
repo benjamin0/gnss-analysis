@@ -22,6 +22,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
+import sbp.navigation as nav
 import sbp.observation as ob
 
 from swiftnav import gpstime
@@ -60,6 +61,55 @@ def get_sid(msg):
     raise AttributeError("msg does not contain a satellite id")
 
 
+def update_position(state, msg, data):
+  """
+  Convert the position estimate to a DataFrame and update
+  the correct state field.
+  """
+  state_field = '%s_position' % get_source(msg)
+  state[state_field] = position_to_dataframe(msg, data)
+  return state
+
+
+def position_to_dataframe(msg, data):
+  """
+  Extracts any position information from the message and
+  converts units, then creates a one dimensional DataFrame
+  from the result, indexed by the host offset.
+
+  Parameters
+  ----------
+  msg : nav.MsgPos*
+    An sbp position message.
+  data :
+    The data corresponding to the msg.
+
+  Returns
+  -------
+  df : pd.DataFrame
+    A DataFrame holding the position estimate and any
+    meta data.  Units (if applicable) will be in meters
+    and seconds.
+  """
+  m = exclude_fields(msg)
+  m.update({'host_offset': data['delta'],
+            'host_time': data['timestamp']})
+  # The time of week is in milliseconds, convert to seconds
+  m['tow'] /= c.MSEC_TO_SECONDS
+  # All other measurements are in mm, but we want meters
+  # here we convert both north, east, down and x, y, z
+  # coords if they are present.
+  if 'n' in m:
+    m['n'] /= c.MM_TO_M
+    m['e'] /= c.MM_TO_M
+    m['d'] /= c.MM_TO_M
+  if 'x' in m:
+    m['x'] /= c.MM_TO_M
+    m['y'] /= c.MM_TO_M
+    m['z'] /= c.MM_TO_M
+  return pd.DataFrame(m, index=[m['host_offset']])
+
+
 def observation_to_dataframe(msg, data):
   """
   Convert an observation message to a dataframe which
@@ -68,7 +118,7 @@ def observation_to_dataframe(msg, data):
   Parameters
   ----------
   msg : ob.MsgObs or ob.MsgObsDepA
-    An sbp ephemeris message.
+    An sbp observation message.
   data :
     The data corresponding to the msg.
 
@@ -184,6 +234,8 @@ def update_ephemeris(state, msg, data):
   overwriting if necessary.
   """
   updates = ephemeris_to_dataframe(msg, data)
+  if not (msg.valid and msg.healthy):
+    return state
   prev_ephs = state['ephemeris']
   # if no updates, return the original state
   if updates is None:
@@ -212,6 +264,8 @@ def update_observation(state, msg, data):
   so this method replaces the old obs with the new obs.
   """
   new_obs = observation_to_dataframe(msg, data)
+  if not new_obs.size:
+    return state
   # determine if the message was from the rover or base and
   # get the previous observations.
   source = get_source(msg)
@@ -270,13 +324,19 @@ def simulate_from_log(log, initial_state=None):
                  ob.MsgObsDepA: update_observation,
                  ob.MsgEphemeris: update_ephemeris,
                  ob.MsgEphemerisDepA: update_ephemeris,
-                 ob.MsgEphemerisDepB: update_ephemeris}
+                 ob.MsgEphemerisDepB: update_ephemeris,
+                 nav.MsgPosECEF: update_position,
+                 nav.MsgPosLLH: update_position,
+                 nav.MsgBaselineNED: update_position,
+                 nav.MsgBaselineECEF: update_position}
 
   # use either the initial state provided, or a blank set
   # of observations.
   state = initial_state or {'rover': pd.DataFrame(),
+                            'rover_position': pd.DataFrame(),
                             'base': pd.DataFrame(),
-                            'ephemeris': pd.DataFrame()}
+                            'base_position': pd.DataFrame(),
+                            'ephemeris': pd.DataFrame(),}
 
   for msg, data in log_utils.complete_messages_only(log):
     if type(msg) in _processors:
