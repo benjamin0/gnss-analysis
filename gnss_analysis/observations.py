@@ -81,7 +81,8 @@ def mk_ephemeris(eph):
                    GpsTime(eph.toc_wn, eph.toc_tow),
                    eph['valid'],
                    eph.healthy,
-                   eph.prn)
+                   # get the prn if it exists, otherwise the sid
+                   eph.get('prn', eph.get('sid')))
 
 
 def ffill_panel(panel, axis=1):
