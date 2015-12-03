@@ -19,7 +19,7 @@ from pandas.tslib import Timestamp
 from sbp.client.loggers.json_logger import JSONLogIterator
 from gnss_analysis.tools.records2table import StoreToHDF5, hdf5_write
 
-
+@pytest.mark.skipif(True, reason="Messages in these logs have been deprecated.")
 def test_hdf5(datadir):
   log_file = 'serial_link_log_20150314-190228_dl_sat_fail_test1.log.json.dat'
   log_datafile = datadir.join(log_file).strpath

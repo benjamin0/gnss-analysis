@@ -26,7 +26,7 @@ def datadir(tmpdir):
 
 @pytest.fixture
 def jsonlogpath(datadir):
-  basename = 'partial_serial-link-20151120-104128.log.json'
+  basename = 'partial_serial-link-20151128-153739.log.json'
   return datadir.join(basename).strpath
 
 
