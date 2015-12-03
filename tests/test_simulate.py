@@ -8,7 +8,7 @@ import numpy as np
 from gnss_analysis import simulate
 from swiftnav import gpstime
 
-
+@pytest.mark.long
 def test_simulate_from_log(jsonlog):
   """
   A quick and dirty test that just makes sure

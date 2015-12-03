@@ -27,10 +27,10 @@ import numpy as np
 import pandas as pd
 import swiftnav.gpstime as gpstime
 
-from swiftnav.pvt import calc_PVT
+from swiftnav.pvt import calc_PVT_ as calc_PVT
 from swiftnav.track import NavigationMeasurement
 from swiftnav.gpstime import GpsTime
-from swiftnav.ephemeris import Ephemeris, calc_sat_state
+from swiftnav.ephemeris import Ephemeris
 from swiftnav.observation import SingleDiff
 
 from gnss_analysis.constants import *
@@ -77,8 +77,10 @@ def mk_ephemeris(eph):
                    eph.af0,
                    eph.af1,
                    eph.af2,
-                   GpsTime(eph.toe_wn, eph.toe_tow),
-                   GpsTime(eph.toc_wn, eph.toc_tow),
+                   GpsTime(wn=eph.toe_wn,
+                           tow=eph.toe_tow),
+                   GpsTime(wn=eph.toc_wn,
+                           tow=eph.toc_tow),
                    eph['valid'],
                    eph.healthy,
                    # get the prn if it exists, otherwise the sid
@@ -176,7 +178,7 @@ def mk_nav_measurement(gpst, prn, obs_t, eph_t):
   """
   # Check if we have an ephemeris for this satellite, we will
   # need this to fill in satellite position etc. parameters.
-  sat_state = calc_sat_state(eph_t, gpst)
+  sat_state = eph_t.calc_sat_state(gpst)
   sat_pos, sat_vel, clock_err, clock_rate_err = sat_state
   # Apply corrections to the raw pseudorange
   pseudorange = obs_t.P + clock_err * GPS_C
