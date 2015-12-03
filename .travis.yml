@@ -19,8 +19,8 @@ before_install:
 
 install:
   # fetch the requirements for gnss-analysis
-  - conda env create --file tests/test-requirements.yml
-  - source activate test_env
+  - conda env create --file travis_requirements.yml
+  - source activate gnss_analysis
   # checkout libswiftnav and compile it
   - git clone https://github.com/swift-nav/libswiftnav
   - cd libswiftnav
@@ -28,12 +28,12 @@ install:
   - cmake ../ -DCMAKE_C_FLAGS=-fPIC
   - make
   - sudo make install
-  # install libswiftnav-python, make sure it can find the .so
-  - export LD_LIBRARY_PATH=/usr/local/lib/
-  - cd ../python
-  - pip install -e ./
-  # install gnss-analysis
+  # back to the root directory
   - cd ../..
+  # make sure libswiftnav-python can find its .so
+  - export LD_LIBRARY_PATH=/usr/local/lib/
+  # install gnss-analysis
+  - pip install -r requirements.txt
   - pip install -e ./
 
 script:
