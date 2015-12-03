@@ -1,0 +1,43 @@
+# Based on http://conda.pydata.org/docs/travis.html
+language: python
+sudo: true # use container based build
+notifications:
+  email: false
+
+before_install:
+  # install hdf5 so tables installs properly
+  - sudo apt-get update -qq
+  - sudo apt-get install -y libhdf5-serial-dev cmake
+  # download and setup conda
+  - wget http://repo.continuum.io/miniconda/Miniconda-3.16.0-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+
+install:
+  # fetch the requirements for gnss-analysis
+  - conda env create --file tests/test-requirements.yml
+  - source activate test_env
+  # checkout libswiftnav and compile it
+  - git clone https://github.com/swift-nav/libswiftnav
+  - cd libswiftnav
+  - mkdir build; cd build
+  - cmake ../ -DCMAKE_C_FLAGS=-fPIC
+  - make
+  - sudo make install
+  # install libswiftnav-python, make sure it can find the .so
+  - export LD_LIBRARY_PATH=/usr/local/lib/
+  - cd ../python
+  - pip install -e ./
+  # install gnss-analysis
+  - cd ../..
+  - pip install -e ./
+
+script:
+  - py.test tests/
+
+after_success:
+  - coveralls
