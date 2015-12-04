@@ -1,22 +1,10 @@
-sbp
-numpy
-cython
-scipy
-matplotlib==1.4.2
-tables
-pandas
-pytest
-docutils
-flake8
-mccabe
-pep8
-pyflakes
-pylint
-coverage
-pytest-cov
-pytest-xdist
-tox
-ipython-sql
-scikit-learn
-statsmodels
-scikits.statsmodels
+# This is the default index.
+--index-url https://pypi.python.org/simple/
+
+# Install swiftnav from the bleeding edge version on
+# github.
+-e git+https://github.com/swift-nav/libswiftnav.git#egg=swiftnav&subdirectory=python
+
+# Use the requirements specified in setup.py
+# https://caremad.io/2013/07/setup-vs-requirement/
+-e .

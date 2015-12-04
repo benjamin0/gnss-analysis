@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
 try:
@@ -13,14 +13,38 @@ except ImportError:
   print 'Please install or upgrade setuptools or pip to continue.'
   sys.exit(1)
 
+  
+INSTALL_REQUIRES = ['cython',
+                    # These specific versions are required for
+                    # a python environment that cooperates with
+                    # libswiftnav / sbp_log_analysis etc, but
+                    # aren't explicitly required by gnss-analysis
+                    'numpy==1.9.3',
+                    'pandas==0.16.1',
+                    'scipy==0.16.0',
+                    'tables',
+                    'matplotlib',
+                    'sbp',
+                    'tables',
+                    'scikits.statsmodels',
+                    # this will have to be installed by either
+                    # running `pip install -r requirements.txt`,
+                    # which will grab the latest version of libswiftnav
+                    # or can be installed from a local clone of
+                    # libswiftnav.
+                    'swiftnav',
+                    ]
+TEST_REQUIRES = ['pytest', 'mock']                  
+                  
+  
 setup(name='gnss_analysis',
-      description='Software-in-the-loop testing for libswiftnav RTK filters',
-      version='0.23',
+      description='Analysis and Testing of libswiftnav RTK filters',
+      version='0.24',
       author='Swift Navigation',
-      author_email='ian@swiftnav.com',
-      maintainer='Ian Horn',
-      maintainer_email='ian@swiftnav.com',
-      # url='https://github.com/imh/gnss-analysis',
+      author_email='dev@swiftnav.com',
+      maintainer='Swift Navigation',
+      maintainer_email='dev@swiftnav.com',
+      url='https://github.com/swift-nav/gnss-analysis',
       keywords='',
       classifiers=['Intended Audience :: Developers',
                    'Intended Audience :: Science/Research',
@@ -32,7 +56,8 @@ setup(name='gnss_analysis',
                    'Programming Language :: Python :: 2.7'
                    ],
       packages=find_packages(),
+      install_requires=INSTALL_REQUIRES,
+      tests_require=TEST_REQUIRES,
       platforms="Linux,Windows,Mac",
-      py_modules=['sbp_log_analysis'],
       use_2to3=False,
       zip_safe=False)
