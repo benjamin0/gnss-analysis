@@ -56,35 +56,39 @@ def mk_ephemeris(eph):
   eph : object
     Any object with structured ephemeris data (i.e., either a
     MsgEphemeris from libsbp or a Series object.)
-
   """
-  return Ephemeris(eph.tgd,
-                   eph.c_rs,
-                   eph.c_rc,
-                   eph.c_uc,
-                   eph.c_us,
-                   eph.c_ic,
-                   eph.c_is,
-                   eph.dn,
-                   eph.m0,
-                   eph.ecc,
-                   eph.sqrta,
-                   eph.omega0,
-                   eph.omegadot,
-                   eph.w,
-                   eph.inc,
-                   eph.inc_dot,
-                   eph.af0,
-                   eph.af1,
-                   eph.af2,
-                   GpsTime(wn=eph.toe_wn,
-                           tow=eph.toe_tow),
-                   GpsTime(wn=eph.toc_wn,
-                           tow=eph.toc_tow),
-                   eph['valid'],
-                   eph.healthy,
-                   # get the prn if it exists, otherwise the sid
-                   eph.get('prn', eph.get('sid')))
+  kepler_vars = {'tgd': 'tgd',
+                 'crs': 'c_rs',
+                 'crc': 'c_rc',
+                 'cuc': 'c_uc',
+                 'cus': 'c_us',
+                 'cic': 'c_ic',
+                 'cis': 'c_is',
+                 'dn': 'dn',
+                 'm0': 'm0',
+                 'ecc': 'ecc',
+                 'sqrta': 'sqrta',
+                 'omega0': 'omega0',
+                 'omegadot': 'omegadot',
+                 'w': 'w',
+                 'inc': 'inc',
+                 'inc_dot': 'inc_dot',
+                 'af0': 'af0',
+                 'af1': 'af1',
+                 'af2': 'af2',
+                 'iode': 'iode'}
+  kepler = {k: eph.get(v) for k, v in kepler_vars.iteritems()}
+  kepler['toc'] = {'wn': eph.toc_wn,
+                   'tow': eph.toc_tow}
+
+  return Ephemeris(toe={'wn': eph.toe_wn,
+                        'tow': eph.toe_tow},
+                   valid=eph['valid'],
+                   healthy=eph['healthy'],
+                   kepler=kepler,
+                   sid={'sat': eph.sid,
+                        'band': eph.get('band', 0),
+                        'constellation': eph.get('constellation', 0)})
 
 
 def ffill_panel(panel, axis=1):

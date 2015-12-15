@@ -17,13 +17,15 @@ def test_simulate_from_log(jsonlog):
   any of the actual content.
   """
   states = simulate.simulate_from_log(jsonlog)
+  states = [x for _, x in zip(range(10), states)]
   prev_state = states.next()
   for state in states:
     state_copy = copy.deepcopy(state)
-    for k, new_v in state.iteritems():
+    keys = ['rover', 'base', 'ephemeris']
+    for k in keys:
       prev_v_copy = copy.deepcopy(prev_state[k])
       # fill with nans
-      new_v.ix[:] = np.nan
+      state[k].ix[:] = np.nan
       # make sure modifying the current state won't
       # alter the previous state
       np.testing.assert_array_equal(prev_state[k].values,
