@@ -5,11 +5,9 @@ import pandas as pd
 from swiftnav import gpstime
 from swiftnav import ephemeris as swiftnav_ephemeris
 
-from sbp_log_analysis import locations
-
 import gnss_analysis.constants as c
 
-from gnss_analysis import ephemeris, observations
+from gnss_analysis import ephemeris, observations, locations
 
 
 def test_calc_sat_state(ephemerides):

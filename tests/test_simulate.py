@@ -17,8 +17,8 @@ def test_simulate_from_log(jsonlog):
   any of the actual content.
   """
   states = simulate.simulate_from_log(jsonlog)
+  prev_state = states.pop()
   states = [x for _, x in zip(range(10), states)]
-  prev_state = states.next()
   for state in states:
     state_copy = copy.deepcopy(state)
     keys = ['rover', 'base', 'ephemeris']
