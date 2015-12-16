@@ -8,7 +8,6 @@ import numpy as np
 from gnss_analysis import simulate
 from swiftnav import gpstime
 
-@pytest.mark.long
 def test_simulate_from_log(jsonlog):
   """
   A quick and dirty test that just makes sure
@@ -17,7 +16,7 @@ def test_simulate_from_log(jsonlog):
   any of the actual content.
   """
   states = simulate.simulate_from_log(jsonlog)
-  prev_state = states.pop()
+  prev_state = states.next()
   states = [x for _, x in zip(range(10), states)]
   for state in states:
     state_copy = copy.deepcopy(state)
