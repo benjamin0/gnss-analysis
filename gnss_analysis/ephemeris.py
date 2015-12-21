@@ -21,9 +21,6 @@ from scipy.optimize import newton
 
 import gnss_analysis.constants as c
 
-WEEK_SECS = 7 * 24 * 60 * 60
-EPHEMERIS_VALID_TIME = 4 * 60 * 60
-
 
 def sagnac_rotation(sat_pos, time_of_flight):
   """
@@ -72,7 +69,8 @@ def sagnac_rotation(sat_pos, time_of_flight):
   return sat_pos_rot
 
 
-def time_of_transmission(eph, time_of_arrival, ref_loc, iterations=2):
+def time_of_transmission(eph, time_of_arrival, ref_loc,
+                         max_iterations=2, tol=1e-12):
   """
   Computes the time of transmission given a set of ephemeris data, a reference
   location and a time.  This requires an iterative process in which
@@ -80,9 +78,6 @@ def time_of_transmission(eph, time_of_arrival, ref_loc, iterations=2):
   arrival time.  An approximate time of transmission is then computed
   which gives a more accurate satellite position that can be used to
   improve the time of transmission estimate.
-  
-  Typically this only takes a couple iterations to converge to sub
-  mm resolutions.
   
   Parameters
   ----------
@@ -93,6 +88,21 @@ def time_of_transmission(eph, time_of_arrival, ref_loc, iterations=2):
     and represents the time when a transmission was received at ref_loc.
   ref_loc : array-like
     An array like holding
+  max_iterations : int (optional)
+    The maximum number of iterations to perform, defaults to two.
+    Typically this only takes a couple iterations to converge to sub
+    mm resolutions.
+  tol : float (optional)
+    The tolerance used to determine convergence.  If the change in time
+    between two iterations is less than tol, convergence is assumed.
+
+  Returns
+  -------
+  tot : pd.DataFrame
+    A data frame holding the week number and time of week that represent
+    the time of transmission.
+  sat_state : pd.DataFrame
+    Returns the satellite state at the time of transmission.
   """
   tot = eph[['wn', 'tow']].copy()
   tot['wn'] = time_of_arrival['wn']
@@ -100,12 +110,12 @@ def time_of_transmission(eph, time_of_arrival, ref_loc, iterations=2):
   # Note that just one iteration is typically enough to get within mm
   # precision which should be sufficient.
   old_tow = np.nan
-  for i in range(iterations):
+  for i in range(max_iterations):
     sat_state = calc_sat_state(eph, tot)
     sat_pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
     dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
     tot['tow'] = time_of_arrival['tow'] - dists / c.GPS_C
-    if np.all(np.abs(tot['tow'] - old_tow)) < 1e-12:
+    if np.allclose(tot['tow'], old_tow, atol=tol):
       break
     old_tow = tot['tow']
 
@@ -134,8 +144,8 @@ def gpsdifftime(end_wn, end_tow, start_wn, start_tow):
   Returns the time difference in seconds between to times
   stored in week number and time of week representations.
   """
-  # TODO: should we make a gpstime module?
-  return end_tow - start_tow + (end_wn - start_wn) * WEEK_SECS
+  # TODO: should we make a gpstime module ?
+  return end_tow - start_tow + (end_wn - start_wn) * c.WEEK_SECS
 
 
 def calc_sat_state(eph, t=None):
@@ -189,7 +199,8 @@ def calc_sat_state(eph, t=None):
                    eph['toe_wn'].values, eph['toe_tow'].values)
 
   # If dt is greater than 4 hours our ephemerides isn't valid.
-  if np.any(np.abs(dt) > EPHEMERIS_VALID_TIME):
+
+  if np.any(np.abs(dt) > eph['fit_interval'] * 60 * 60):
     logging.warn("Using an ephemerides outside validity period, dt = %+.0f")
 
   # Calculate position per IS-GPS-200D p 97 Table 20-IV
@@ -355,6 +366,8 @@ def add_satellite_state(obs, ephemerides=None):
 
   # infer the time of transmission from the raw_pseudorange.
   obs['tot'] = obs['tow'] - obs.raw_pseudorange / c.GPS_C
+  # TODO: tot might end up on a different week number.
+  assert np.all(obs['tot'] > 0.)
   # compute the satellite position at the observation time
   # add the clock error to form the corrected pseudorange
   obs['pseudorange'] = obs.raw_pseudorange + obs.sat_clock_error * c.GPS_C

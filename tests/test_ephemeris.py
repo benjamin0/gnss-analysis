@@ -21,6 +21,9 @@ def test_calc_sat_state(ephemerides):
 
   ephemerides['toc_wn'] = ephemerides['toe_wn']
 
+  # make sure we've added a fit interval
+  assert 'fit_interval' in ephemerides
+
   actual = ephemeris.calc_sat_state(ephemerides, time)
 
   for i in range(n):
@@ -186,8 +189,18 @@ def test_time_of_transmission_vectorization(ephemerides):
   ten, _ = ephemeris.time_of_transmission(ephemerides,
                                        ref_time,
                                        ref_loc,
-                                       iterations=10)
+                                       max_iterations=10,
+                                       tol=1e-12)
   assert np.all(np.abs(ten - full) <= 1e-9)
+
+  # make sure the algorithm converged and is less than
+  # the convergence tolerance
+  nine, _ = ephemeris.time_of_transmission(ephemerides,
+                                       ref_time,
+                                       ref_loc,
+                                       max_iterations=9,
+                                       tol=0)
+  np.all(np.abs(nine['tow'] - ten['tow']) < 1e-12)
 
 
 def test_time_of_transmission_regression(ephemerides):
