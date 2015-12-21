@@ -188,9 +188,10 @@ def ephemeris_to_dataframe(msg, data):
     # make sure the satellite id attribute isn't propagated since
     # it is part of the index
     [msg.pop(x, None) for x in ['sid', 'prn']]
-    # TODO: once iodc gets incorporated into the libswiftnav.ephemeris python
-    # bindings, decode this from the message.
+    # TODO: once iodc and ura gets incorporated into the libswiftnav.ephemeris
+    # python bindings, decode these from the message.
     msg['fit_interval'] = 4
+    msg['ura'] = 0
     eph = pd.DataFrame(msg, index=pd.Index([sid], name='sid'))
     return eph
 
