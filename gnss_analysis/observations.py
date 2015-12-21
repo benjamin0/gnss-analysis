@@ -200,6 +200,7 @@ def mk_nav_measurement(gpst, prn, obs_t, eph_t):
                              sat_vel,# sat_vel
                              obs_t.cn0,# snr
                              lock_time,# lock_time
+                             # TODO: gpst is NOT tot
                              gpst,# tot
                              prn,# prn
                              obs_t.lock)# lock_counter

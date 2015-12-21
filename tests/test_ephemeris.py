@@ -54,6 +54,19 @@ def test_calc_sat_state(ephemerides):
   another = ephemeris.calc_sat_state(ephemerides)
   np.testing.assert_array_equal(actual.values, another.values)
 
+  # try with a time that is equivalent, but definied with negative
+  # time of week and make sure that doesn't break anything
+  neg_tow = time.copy()
+  neg_tow['wn'] += 1
+  neg_tow['tow'] -= c.WEEK_SECS
+  assert np.all(0 == ephemeris.gpsdifftime(neg_tow['wn'], neg_tow['tow'],
+                                           time['wn'], time['tow']))
+  another = ephemeris.calc_sat_state(ephemerides, neg_tow)
+  # make sure nothing (except the wn and tow) are different.
+  np.testing.assert_array_equal(another.drop(['sat_tow', 'sat_wn'], axis=1),
+                                actual.drop(['sat_tow', 'sat_wn'], axis=1))
+
+
 
 def test_sagnac_rotation(ephemerides):
   time = ephemerides[['wn', 'tow']].copy()
@@ -234,6 +247,26 @@ def test_time_of_transmission_regression(ephemerides):
                                        actual_tot['tow'].values)
   np.testing.assert_array_almost_equal(sat_state.values,
                                        actual_state.values, 3)
+
+
+def test_gpsdifftime():
+  tests = [({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow': 0}, 1),
+           # trivial case.
+           ({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow': 1}, 0),
+           # These next two make sure that the difference between two times, one of which
+           # has a negative time of week is equivalent to the difference between two
+           # properly defined gps times.
+           ({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow':-1}, 2),
+           ({'end_wn': 0, 'end_tow': 1, 'start_wn':-1, 'start_tow': c.WEEK_SECS - 1}, 2),
+           # Make sure the same time of week but incremented wn is exactly one week apart.
+           ({'end_wn': 1, 'end_tow': 0, 'start_wn': 0, 'start_tow': 0}, c.WEEK_SECS),
+           ({'end_wn': 1, 'end_tow': 1, 'start_wn': 0, 'start_tow': 0}, c.WEEK_SECS + 1),
+           # Make sure negative differences are handled.
+           ({'end_wn': 0, 'end_tow': 0, 'start_wn': 0, 'start_tow': 1}, -1),
+           ]
+
+  for params, expected in tests:
+    assert expected == ephemeris.gpsdifftime(**params)
 
 
 def test_sat_velocity(ephemerides):

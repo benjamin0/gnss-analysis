@@ -144,7 +144,8 @@ def gpsdifftime(end_wn, end_tow, start_wn, start_tow):
   Returns the time difference in seconds between to times
   stored in week number and time of week representations.
   """
-  # TODO: should we make a gpstime module ?
+  # TODO: should we make a gpstime python module to mimic the
+  #   libswiftnav module (but handle vectors)?
   return end_tow - start_tow + (end_wn - start_wn) * c.WEEK_SECS
 
 
@@ -366,8 +367,6 @@ def add_satellite_state(obs, ephemerides=None):
 
   # infer the time of transmission from the raw_pseudorange.
   obs['tot'] = obs['tow'] - obs.raw_pseudorange / c.GPS_C
-  # TODO: tot might end up on a different week number.
-  assert np.all(obs['tot'] > 0.)
   # compute the satellite position at the observation time
   # add the clock error to form the corrected pseudorange
   obs['pseudorange'] = obs.raw_pseudorange + obs.sat_clock_error * c.GPS_C
