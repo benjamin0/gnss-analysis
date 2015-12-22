@@ -56,35 +56,42 @@ def mk_ephemeris(eph):
   eph : object
     Any object with structured ephemeris data (i.e., either a
     MsgEphemeris from libsbp or a Series object.)
-
   """
-  return Ephemeris(eph.tgd,
-                   eph.c_rs,
-                   eph.c_rc,
-                   eph.c_uc,
-                   eph.c_us,
-                   eph.c_ic,
-                   eph.c_is,
-                   eph.dn,
-                   eph.m0,
-                   eph.ecc,
-                   eph.sqrta,
-                   eph.omega0,
-                   eph.omegadot,
-                   eph.w,
-                   eph.inc,
-                   eph.inc_dot,
-                   eph.af0,
-                   eph.af1,
-                   eph.af2,
-                   GpsTime(wn=eph.toe_wn,
-                           tow=eph.toe_tow),
-                   GpsTime(wn=eph.toc_wn,
-                           tow=eph.toc_tow),
-                   eph['valid'],
-                   eph.healthy,
-                   # get the prn if it exists, otherwise the sid
-                   eph.get('prn', eph.get('sid')))
+  kepler_vars = {'tgd': 'tgd',
+                 'crs': 'c_rs',
+                 'crc': 'c_rc',
+                 'cuc': 'c_uc',
+                 'cus': 'c_us',
+                 'cic': 'c_ic',
+                 'cis': 'c_is',
+                 'dn': 'dn',
+                 'm0': 'm0',
+                 'ecc': 'ecc',
+                 'sqrta': 'sqrta',
+                 'omega0': 'omega0',
+                 'omegadot': 'omegadot',
+                 'w': 'w',
+                 'inc': 'inc',
+                 'inc_dot': 'inc_dot',
+                 'af0': 'af0',
+                 'af1': 'af1',
+                 'af2': 'af2',
+                 'iode': 'iode',
+                 'iodc': 'iodc'}
+  kepler = {k: eph.get(v) for k, v in kepler_vars.iteritems()}
+  kepler['toc'] = {'wn': eph.toc_wn,
+                   'tow': eph.toc_tow}
+
+  return Ephemeris(toe={'wn': eph.toe_wn,
+                        'tow': eph.toe_tow},
+                   valid=eph['valid'],
+                   healthy=eph['healthy'],
+                   kepler=kepler,
+                   ura=eph['ura'],
+                   fit_interval=eph['fit_interval'],
+                   sid={'sat': eph.sid,
+                        'band': eph.get('band', 0),
+                        'constellation': eph.get('constellation', 0)})
 
 
 def ffill_panel(panel, axis=1):
@@ -184,18 +191,19 @@ def mk_nav_measurement(gpst, prn, obs_t, eph_t):
   pseudorange = obs_t.P + clock_err * GPS_C
   dop = np.nan
   lock_time = np.nan
-  nm = NavigationMeasurement(obs_t.P,      # raw_pseudorange
-                             pseudorange,  # pseudorange
-                             obs_t.L,      # carrier_phase
-                             dop,          # raw_doppler
-                             dop,          # doppler
-                             sat_pos,      # sat_pos
-                             sat_vel,      # sat_vel
-                             obs_t.cn0,    # snr
-                             lock_time,    # lock_time
-                             gpst,         # tot
-                             prn,          # prn
-                             obs_t.lock)   # lock_counter
+  nm = NavigationMeasurement(obs_t.P,# raw_pseudorange
+                             pseudorange,# pseudorange
+                             obs_t.L,# carrier_phase
+                             dop,# raw_doppler
+                             dop,# doppler
+                             sat_pos,# sat_pos
+                             sat_vel,# sat_vel
+                             obs_t.cn0,# snr
+                             lock_time,# lock_time
+                             # TODO: gpst is NOT tot
+                             gpst,# tot
+                             prn,# prn
+                             obs_t.lock)# lock_counter
   return nm
 
 
@@ -371,11 +379,12 @@ def fill_observations(table, cutoff=None, verbose=False):
       continue
     # Transform obs_base and obs_rover entries into
     # navigation_measurements, which we turn into a set of sdiffs.
-    base_nav_tmp, base_spp_sim_t \
-      = derive_gpst_meas(timestamp, base_obs_t, eph_t, base_nav_tmp)
+    base_nav_tmp, base_spp_sim_t = derive_gpst_meas(timestamp, base_obs_t,
+                                                    eph_t, base_nav_tmp)
     base_spp_sim_t = calc_PVT(base_nav_tmp.values())
-    rover_nav_tmp, rover_spp_sim_t \
-      = derive_gpst_meas(timestamp, filter_col(rover_obs_t), eph_t, rover_nav_tmp)
+    rover_nav_tmp, rover_spp_sim_t = derive_gpst_meas(timestamp,
+                                                      filter_col(rover_obs_t),
+                                                      eph_t, rover_nav_tmp)
     rover_spp_sim_t = calc_PVT(rover_nav_tmp.values())
     # Differenced observations
     sdiff_ts = mk_single_diff(rover_nav_tmp, base_nav_tmp)

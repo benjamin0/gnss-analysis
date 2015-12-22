@@ -8,7 +8,6 @@ import numpy as np
 from gnss_analysis import simulate
 from swiftnav import gpstime
 
-@pytest.mark.long
 def test_simulate_from_log(jsonlog):
   """
   A quick and dirty test that just makes sure
@@ -18,12 +17,14 @@ def test_simulate_from_log(jsonlog):
   """
   states = simulate.simulate_from_log(jsonlog)
   prev_state = states.next()
+  states = [x for _, x in zip(range(10), states)]
   for state in states:
     state_copy = copy.deepcopy(state)
-    for k, new_v in state.iteritems():
+    keys = ['rover', 'base', 'ephemeris']
+    for k in keys:
       prev_v_copy = copy.deepcopy(prev_state[k])
       # fill with nans
-      new_v.ix[:] = np.nan
+      state[k].ix[:] = np.nan
       # make sure modifying the current state won't
       # alter the previous state
       np.testing.assert_array_equal(prev_state[k].values,

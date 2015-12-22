@@ -45,3 +45,13 @@ def hdf5log(datadir):
   filename = datadir.join(basename).strpath
   with pd.HDFStore(filename) as df:
     yield df
+
+@pytest.fixture()
+def ephemerides(jsonlog):
+  """
+  Loads the first available ephemeris data from log
+  """
+  from gnss_analysis import simulate
+  for state in simulate.simulate_from_log(jsonlog):
+    if state['ephemeris'].shape[0] >= 4:
+      return state['ephemeris']

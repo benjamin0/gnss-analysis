@@ -16,11 +16,10 @@ analysis and iterate on the algorithm.
 """
 
 import copy
-import time
 import logging
-import datetime
 import numpy as np
 import pandas as pd
+from functools import partial
 
 import sbp.navigation as nav
 import sbp.observation as ob
@@ -30,6 +29,7 @@ from sbp.utils import exclude_fields
 
 import log_utils
 import gnss_analysis.constants as c
+from gnss_analysis import ephemeris
 
 
 def get_source(msg):
@@ -61,12 +61,19 @@ def get_sid(msg):
     raise AttributeError("msg does not contain a satellite id")
 
 
-def update_position(state, msg, data):
+def update_gps_time(state, msg, data):
+  time = pd.DataFrame({'wn': [msg.wn],
+                       'tow': [msg.tow / c.MSEC_TO_SECONDS]})
+  state['time'] = time
+  return state
+
+
+def update_position(state, msg, data, suffix):
   """
   Convert the position estimate to a DataFrame and update
   the correct state field.
   """
-  state_field = '%s_position' % get_source(msg)
+  state_field = '%s_%s' % (get_source(msg), suffix)
   state[state_field] = position_to_dataframe(msg, data)
   return state
 
@@ -103,10 +110,6 @@ def position_to_dataframe(msg, data):
     m['n'] /= c.MM_TO_M
     m['e'] /= c.MM_TO_M
     m['d'] /= c.MM_TO_M
-  if 'x' in m:
-    m['x'] /= c.MM_TO_M
-    m['y'] /= c.MM_TO_M
-    m['z'] /= c.MM_TO_M
   return pd.DataFrame(m, index=[m['host_offset']])
 
 
@@ -135,8 +138,8 @@ def observation_to_dataframe(msg, data):
 
   def extract_observations(obs):
       # Convert pseudorange, carrier phase to SI units.
-      v = {'P': obs.P / c.CM_TO_M,
-           'L': obs.L.i + obs.L.f / c.Q32_WIDTH,
+      v = {'raw_pseudorange': obs.P / c.CM_TO_M,
+           'carrier_phase': obs.L.i + obs.L.f / c.Q32_WIDTH,
            'cn0': obs.cn0,
            'lock': obs.lock,
            'host_time': data['timestamp'],
@@ -185,6 +188,10 @@ def ephemeris_to_dataframe(msg, data):
     # make sure the satellite id attribute isn't propagated since
     # it is part of the index
     [msg.pop(x, None) for x in ['sid', 'prn']]
+    # TODO: once iodc and ura gets incorporated into the libswiftnav.ephemeris
+    # python bindings, decode these from the message.
+    msg['fit_interval'] = 4
+    msg['ura'] = 0
     eph = pd.DataFrame(msg, index=pd.Index([sid], name='sid'))
     return eph
 
@@ -210,15 +217,15 @@ def tdcp_doppler(old, new):
 
   See also: libswiftnav/src/track.c:tdcp_doppler
   """
-  # TODO: make sure the week numbers are the same since
-  # (at least for now) we don't take them into account
-
+  # TODO: make sure week numbers are the same since we don't
+  #  take them into account yet.  That will require doing some
+  #  NaN comparisons as well.
   # delta time in seconds
   dt = new['tow'] - old['tow']
   # make sure dt is positive.
   assert not np.any(dt.values <= 0.)
   # compute the rate of change of the carrier phase
-  doppler = (new.L - old.L) / dt
+  doppler = (new.carrier_phase - old.carrier_phase) / dt
   # mark any computations with differing locks as nan
   invalid = new['lock'] != old['lock']
   doppler[invalid] = np.nan
@@ -325,18 +332,21 @@ def simulate_from_log(log, initial_state=None):
                  ob.MsgEphemeris: update_ephemeris,
                  ob.MsgEphemerisDepA: update_ephemeris,
                  ob.MsgEphemerisDepB: update_ephemeris,
-                 nav.MsgPosECEF: update_position,
-                 nav.MsgPosLLH: update_position,
-                 nav.MsgBaselineNED: update_position,
-                 nav.MsgBaselineECEF: update_position}
+                 nav.MsgPosECEF: partial(update_position,
+                                         suffix='spp_ecef'),
+                 nav.MsgPosLLH: partial(update_position,
+                                        suffix='spp_llh'),
+                 nav.MsgBaselineNED: partial(update_position,
+                                             suffix='rtk_ned'),
+                 nav.MsgBaselineECEF: partial(update_position,
+                                              suffix='rtk_ecef'),
+                 nav.MsgGPSTime: update_gps_time}
 
   # use either the initial state provided, or a blank set
   # of observations.
   state = initial_state or {'rover': pd.DataFrame(),
-                            'rover_position': pd.DataFrame(),
                             'base': pd.DataFrame(),
-                            'base_position': pd.DataFrame(),
-                            'ephemeris': pd.DataFrame(),}
+                            'ephemeris': pd.DataFrame(), }
 
   for msg, data in log_utils.complete_messages_only(log):
     if type(msg) in _processors:
@@ -346,7 +356,13 @@ def simulate_from_log(log, initial_state=None):
         # yield a copy so we don't accidentally modify things.
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             logging.debug("%d, %d" % (msg.header.t.wn, msg.header.t.tow))
-        yield copy.deepcopy(state)
+        if 'ephemeris' in state:
+          state_copy = copy.deepcopy(state)
+          # add a tow stamp to the ephemeris so we can keep track of which
+          # ephemerides were known at which time.
+          state_copy['ephemeris']['tow'] = state['rover']['tow'].values[0]
+          state_copy['ephemeris']['wn'] = state['rover']['wn'].values[0]
+          yield state_copy
     else:
       logging.debug("No processor available for message type %s"
                     % type(msg))
