@@ -1,5 +1,7 @@
 # gnss-analysis
 
+master: [![Build Status](https://travis-ci.org/swift-nav/gnss-analysis.svg?branch=master)](https://travis-ci.org/swift-nav/gnss-analysis)
+
 Tools for analyzing libswiftnav filters on stored GNSS data.
 
 # Setup and install
