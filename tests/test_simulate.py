@@ -1,9 +1,9 @@
 
 import copy
+import pytest
 import numpy as np
 
 from gnss_analysis import simulate
-
 
 def test_simulate_from_log(jsonlog):
   """
