@@ -49,7 +49,7 @@ import sbp.observation as ob
 import sbp.piksi as piksi
 import sbp.tracking as tr
 import sbp.logging as lg
-import swiftnav.gpstime as gpstime
+import swiftnav.time as gpstime
 import time
 
 from_base = lambda msg: msg.sender == 0
@@ -151,7 +151,7 @@ class StoreToHDF5(object):
           ti[time] = {'total': total, 'counts': 1 << count}
 
   def _process_eph(self, host_offset, host_time, msg):
-    if type(msg) in [ob.MsgEphemeris,]:
+    if type(msg) in [ob.MsgEphemeris, ]:
       time = gpstime.gpst_components2datetime(msg.toe_wn, msg.toe_tow)
       t = self.base_ephemerides if from_base(msg) else self.rover_ephemerides
       prn = msg.sid.sat
@@ -159,7 +159,7 @@ class StoreToHDF5(object):
       m['sid'] = prn
       m['host_time'] = host_time
       self.eph_seq = self.eph_seq + 1 if host_offset in self.ephemerides else 0
-      m['host_offset'] = host_offset + SEQ_INTERVAL*self.eph_seq
+      m['host_offset'] = host_offset + SEQ_INTERVAL * self.eph_seq
       # For the moment, SITL and HITL analyses expect different
       # formats of ephemerides tables. Keep both until everyone's
       # migrated appropriately.
@@ -230,7 +230,7 @@ class StoreToHDF5(object):
     if type(msg) in [lg.MsgLog, lg.MsgPrintDep]:
       m = exclude_fields(msg)
       self.log_seq = self.log_seq + 1 if host_offset in self.rover_logs else 0
-      m['host_offset'] = host_offset + SEQ_INTERVAL*self.log_seq
+      m['host_offset'] = host_offset + SEQ_INTERVAL * self.log_seq
       m['host_time'] = host_time
       self.rover_logs[m['host_offset']] = m
 
@@ -239,7 +239,7 @@ class StoreToHDF5(object):
       m = exclude_fields(msg)
       m['host_offset'] = host_offset
       m['host_time'] = host_time
-      m['cpu'] *= 0.1 # Scale from 1000. to 100.
+      m['cpu'] *= 0.1# Scale from 1000. to 100.
       name = m['name'].rstrip('\x00')
       del m['name']
       if len(name) > 0:
@@ -251,7 +251,7 @@ class StoreToHDF5(object):
   def _process_uart_state(self, host_offset, host_time, msg):
     if type(msg) is piksi.MsgUartState:
       m = exclude_fields(msg)
-      for i in ['uart_a', 'uart_b' ,'uart_ftdi']:
+      for i in ['uart_a', 'uart_b' , 'uart_ftdi']:
         n = walk_json_dict(m[i])
         n['host_offset'] = host_offset
         n['host_time'] = host_time
@@ -394,7 +394,7 @@ def hdf5_write(log_datafile, filename, verbose=False):
       i += 1
       if verbose and i % logging_interval == 0:
         print "Processed %d records! @ %.1f sec." % (i, time.time() - start)
-      processor.process_message(data['delta'],  data['timestamp'], msg)
+      processor.process_message(data['delta'], data['timestamp'], msg)
     print "Processed %d records!" % i
     processor.save(filename)
   return filename

@@ -25,11 +25,11 @@ import time
 import datetime
 import numpy as np
 import pandas as pd
-import swiftnav.gpstime as gpstime
+import swiftnav.time as gpstime
 
 from swiftnav.pvt import calc_PVT_ as calc_PVT
 from swiftnav.track import NavigationMeasurement
-from swiftnav.gpstime import GpsTime
+from swiftnav.time import GpsTime
 from swiftnav.ephemeris import Ephemeris
 from swiftnav.observation import SingleDiff
 

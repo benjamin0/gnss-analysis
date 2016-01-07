@@ -24,7 +24,7 @@ from functools import partial
 import sbp.navigation as nav
 import sbp.observation as ob
 
-from swiftnav import gpstime
+from swiftnav import time as gpstime
 from sbp.utils import exclude_fields
 
 import log_utils

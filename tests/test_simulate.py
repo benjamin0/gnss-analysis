@@ -1,12 +1,9 @@
 
 import copy
-import time
-import pytest
-import datetime
 import numpy as np
 
 from gnss_analysis import simulate
-from swiftnav import gpstime
+
 
 def test_simulate_from_log(jsonlog):
   """

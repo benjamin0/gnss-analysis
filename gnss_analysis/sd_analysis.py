@@ -18,7 +18,7 @@ import operator
 import pandas as pd
 import swiftnav.coord_system as cs
 import swiftnav.dgnss_management as mgmt
-import swiftnav.gpstime as gpstime
+import swiftnav.time as gpstime
 import utils
 
 
@@ -76,8 +76,8 @@ def analyze_datum(datum, i, time, ag):
     # TODO the two baseline computations loop to find DE, which could
     # be fused
     float_b = mgmt.measure_float_b(f2, ag.ecef)
-    faux_resolved_b \
-        = mgmt.measure_b_with_external_ambs(f2, float_N_i_from_b, ag.ecef)
+    faux_resolved_b = mgmt.measure_b_with_external_ambs(f2, float_N_i_from_b,
+                                                        ag.ecef)
     # NOTE: maybe use ag.ecef + 0.5*b or something
     float_b_NED = cs.wgsecef2ned(float_b, ag.ecef)
     faux_resolved_b_NED = cs.wgsecef2ned(faux_resolved_b, ag.ecef)
@@ -92,9 +92,9 @@ def analyze_datum(datum, i, time, ag):
     float_ref_prn = float_prns[0]
     float_prns = float_prns[1:]
     cov_labels_cols = map(lambda x: 'float_amb_cov_' + str(x), float_prns)
-    cov_labels \
-        = map(lambda col: map(lambda row: col + '_' + str(row), float_prns),
-              cov_labels_cols)
+    cov_labels = map(lambda col: map(lambda row: col + '_' + str(row),
+                                     float_prns),
+                     cov_labels_cols)
     if not ag.resolution_ended:
         ag.kf_weighted_log_likelihood = \
             i / (i + 1.0) * ag.kf_weighted_log_likelihood \
@@ -143,7 +143,7 @@ def analyze_datum(datum, i, time, ag):
         if (not ag.resolution_started):
             ag.resolution_started = True
             ag.resolution_contains_ilsq_N \
-                = (mgmt.dgnss_iar_pool_contains(iar_N_i_from_b) == 1)
+ = (mgmt.dgnss_iar_pool_contains(iar_N_i_from_b) == 1)
             ag.float_convergence_time_delta = time - ag.t_0
             ag.float_convergence_i = i
         # if the integer ambiguity resolution just finished
