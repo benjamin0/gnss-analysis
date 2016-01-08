@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from swiftnav import gpstime
+from swiftnav import time as gpstime
 from swiftnav.pvt import calc_PVT_ as calc_PVT
 from swiftnav.track import NavigationMeasurement
 from swiftnav.signal import GNSSSignal
