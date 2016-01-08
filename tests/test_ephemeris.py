@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from swiftnav import gpstime
+from swiftnav import time as gpstime
 from swiftnav import ephemeris as swiftnav_ephemeris
 
 import gnss_analysis.constants as c
