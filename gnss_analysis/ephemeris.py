@@ -87,7 +87,7 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
     Should contain week number ('wn') and time of week ('tow') fields
     and represents the time when a transmission was received at ref_loc.
   ref_loc : array-like
-    An array like holding
+    An array like holding the ECEF coordinates of a reference location
   max_iterations : int (optional)
     The maximum number of iterations to perform, defaults to two.
     Typically this only takes a couple iterations to converge to sub
@@ -101,9 +101,8 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
   tot : pd.DataFrame
     A data frame holding the week number and time of week that represent
     the time of transmission.
-  sat_state : pd.DataFrame
-    Returns the satellite state at the time of transmission.
   """
+  # start with the time of transmission the same as the time of arrival
   tot = eph[['wn', 'tow']].copy()
   tot['wn'] = time_of_arrival['wn']
   tot['tow'] = time_of_arrival['tow']
@@ -111,15 +110,82 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
   # precision which should be sufficient.
   old_tow = np.nan
   for i in range(max_iterations):
+    # compute the time of flight using the current best guess at
+    # time of transmission
     sat_state = calc_sat_state(eph, tot)
     sat_pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
     dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
+    tof = dists / c.GPS_C
+    # rotate the earth according to the time of flight
+    sat_pos = sagnac_rotation(sat_pos, tof)
+    dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
+    # use the resulting distance to update our guess of the
+    # time of transmission.
     tot['tow'] = time_of_arrival['tow'] - dists / c.GPS_C
     if np.allclose(tot['tow'], old_tow, atol=tol):
       break
     old_tow = tot['tow']
+  return tot
 
-  return tot, sat_state
+
+def time_of_arrival(eph, time_of_transmission, ref_loc,
+                    max_iterations=1, tol=1e-12):
+  """
+  Computes the time of arrival of a signal sent at some transmission
+  time given a set of ephemeris data, a reference
+  location.  This requires an iterative process in which
+  an approximate distance is computed from a first guess at arrival time.
+  The earth is the rotated according to corresponding time of flight
+  and the time of arrival is updated.
+  
+  Parameters
+  ----------
+  eph : pd.DataFrame
+    A DataFrame holding ephemeris parameters.
+  time_of_transmission : dict of pd.DataFrame
+    Should contain week number ('wn') and time of week ('tow') fields
+    and represents the time when a transmission was sent.
+  ref_loc : array-like
+    An array like holding the ECEF coordinates of a reference location
+  max_iterations : int (optional)
+    The maximum number of iterations to perform, defaults to two.
+    Typically this only takes a couple iterations to converge to sub
+    mm resolutions.
+  tol : float (optional)
+    The tolerance used to determine convergence.  If the change in time
+    between two iterations is less than tol, convergence is assumed.
+
+  Returns
+  -------
+  toa : pd.DataFrame
+    A data frame holding the week number and time of week that represent
+    the time of arrival.
+  """
+  toa = eph[['wn', 'tow']].copy()
+  toa['wn'] = time_of_transmission['wn']
+  toa['tow'] = time_of_transmission['tow']
+  # compute the satellite state at time of transmission
+  sat_state = calc_sat_state(eph, time_of_transmission)
+  sat_pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
+  dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
+  # Note that just one iteration is typically enough to get within mm
+  # precision which should be sufficient.  In fact, this should converge
+  # significantly faster than time_of_transmission which requires
+  # iteratively updating the satellite_state.
+  old_tow = np.nan
+  for i in range(max_iterations):
+    # current guess at time of flight
+    tof = dists / c.GPS_C
+    # corresponding earth rotation
+    los_pos = sagnac_rotation(sat_pos, tof)
+    # new time of arrival
+    dists = np.linalg.norm(los_pos - ref_loc, axis=1)
+    toa['tow'] = time_of_transmission['tow'] + dists / c.GPS_C
+    # check for convergence
+    if np.all(np.abs(toa['tow'] - old_tow)) < tol:
+      break
+    old_tow = toa['tow']
+  return toa
 
 
 def _eccentric_anomaly_from_mean_anomaly(ma, ecc):
@@ -165,7 +231,10 @@ def calc_sat_state(eph, t=None):
     satellite state.
   t : dict-like
     An object that contains items t['tow'] and t['wn'] which indicate
-    the time of the desired satellite state.
+    the GPS system time of the desired satellite state.  NOTE! system time is
+    different than satellite time.  In otherwords, the satellite clock
+    will be reporting t_sat = t_system + clock_err.  All positions and
+    velocities from this algorithm are valid at t_system.
 
   Returns
   -------
@@ -182,6 +251,10 @@ def calc_sat_state(eph, t=None):
   # TODO: Once all these tests are settled it'd be nice to break this appart
   #       into smaller pieces, one that computes position one for clock errors
   #       etc.
+  # TODO: If the c version of calc_sat_state took float values for all the
+  #       ephemeris parameters (instead of ephemeris objects) we could implement
+  #       a cython vectorized call that would likely be as fast (or faster) than
+  #       this but avoid all the duplicate code.
 
   if t is None and 'wn' in eph and 'tow' in eph:
     t = eph[['wn', 'tow']]
@@ -310,15 +383,17 @@ def has_sat_state(obs):
   return 'sat_x' in obs
 
 
-def add_satellite_state(obs, ephemerides=None):
+def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
   """
   Compute the satellite state for a set of observations and
-  add any corrections to the observation data.  This
-  includes:
+  add any corrections to the observation data.  This function
+  also serves the goal of inferring variables that were not
+  explicitly sent in sbp.MsgObs messages, including:
     - A satellite clock error corrected pseudorange which
       is added as a new column
     - The time of transmission which is inferred from the
       raw pseudorange
+    - Computing doppler from raw_doppler
 
   Parameters
   ----------
@@ -358,16 +433,29 @@ def add_satellite_state(obs, ephemerides=None):
     # prefering columns from ephemerides
     obs = _update_columns(obs, ephemerides)
 
-  # ephemerides can be either the ephemeris parameters or
-  # a pre-computed satellite state.  Here we check if the
-  # state has been pre-computed and if not add it to obs.
+  obs['tot'] = obs['tow'] - obs['raw_pseudorange'] / c.GPS_C
+
+  # it is sometimes helpful to precompute satellite state all
+  # at once, then pass it through the some other set of functions
+  # that can't assume the state has been precomputed.
+  # Here we check if the state was already added, and if so
+  # skip the expensive calc_sat_state computation.
   if not has_sat_state(obs):
-    sat_state = calc_sat_state(obs, obs[['wn', 'tow']])
+    sat_state = calc_sat_state(obs, {'wn': obs['wn'], 'tow': obs['tot']})
+    # Here we optionally adjust the satellite state to account for
+    # satellite clock error.  In otherwords, the satellites all transmit
+    # at what they think is a synchronized tot, but each is actually off
+    # by 'sat_clock_error'.  This error can be on the order of tenths of
+    # a second, during which time the satellite position can change
+    # significantly.
+    if account_for_sat_error:
+      actual_tot = obs['tot'] - sat_state['sat_clock_error']
+      sat_state = calc_sat_state(obs, {'wn': obs['wn'].values[0],
+                                       'tow': actual_tot})
     obs = _update_columns(obs, sat_state)
 
-  # infer the time of transmission from the raw_pseudorange.
-  obs['tot'] = obs['tow'] - obs.raw_pseudorange / c.GPS_C
   # compute the satellite position at the observation time
   # add the clock error to form the corrected pseudorange
-  obs['pseudorange'] = obs.raw_pseudorange + obs.sat_clock_error * c.GPS_C
+  obs['pseudorange'] = obs['raw_pseudorange'] + obs['sat_clock_error'] * c.GPS_C
+  obs['doppler'] = obs.raw_doppler + obs['sat_clock_error_rate'] * c.GPS_L1_HZ
   return obs

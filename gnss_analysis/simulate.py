@@ -27,9 +27,8 @@ import sbp.observation as ob
 from swiftnav import time as gpstime
 from sbp.utils import exclude_fields
 
-import log_utils
-import gnss_analysis.constants as c
-from gnss_analysis import ephemeris
+from gnss_analysis import constants as c
+from gnss_analysis import ephemeris, log_utils
 
 
 def get_source(msg):
@@ -62,8 +61,9 @@ def get_sid(msg):
 
 
 def update_gps_time(state, msg, data):
+  tow = msg.tow / c.MSEC_TO_SECONDS + msg.ns * 1e-9
   time = pd.DataFrame({'wn': [msg.wn],
-                       'tow': [msg.tow / c.MSEC_TO_SECONDS]})
+                       'tow': [tow]})
   state['time'] = time
   return state
 
@@ -180,8 +180,6 @@ def ephemeris_to_dataframe(msg, data):
                           ob.MsgEphemerisDepB))
   # if the message is healthy and valid we emit the corresponding DataFrame
   if msg.healthy == 1 and msg.valid == 1:
-    # determine if the ephemeris was from the rover or base
-    source = get_source(msg)
     # determine the satellite id.
     sid = get_sid(msg)
     msg = exclude_fields(msg)
@@ -286,7 +284,9 @@ def update_observation(state, msg, data):
   # align the previous observations to match the new_obs index.
   new_obs, prev_obs = new_obs.align(prev_obs, 'left')
   # update the doppler information.
-  new_obs['doppler'] = tdcp_doppler(prev_obs, new_obs)
+  new_obs['raw_doppler'] = tdcp_doppler(prev_obs, new_obs)
+  # the actual doppler is the raw_doppler + clock_rate_err * GPS_L1_HZ
+  # but since we don't know the clock_rate_err yet we leave that for later.
   state[source] = new_obs
   return state
 
@@ -352,7 +352,7 @@ def simulate_from_log(log, initial_state=None):
     if type(msg) in _processors:
       # TODO: process other messages
       state = _processors[type(msg)](state, msg, data)
-      if is_rover_observation(msg) and state is not None:
+      if is_rover_observation(msg) and not state['rover'].empty:
         # yield a copy so we don't accidentally modify things.
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             logging.debug("%d, %d" % (msg.header.t.wn, msg.header.t.tow))

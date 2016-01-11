@@ -15,7 +15,6 @@ be used to wrap a LogIterator such that it will reassemble messages that have
 been split across log entries.
 """
 
-import types
 import logging
 
 from collections import defaultdict
@@ -155,24 +154,24 @@ def complete_messages_only(log):
   data : dict
     A dict holding the timestamp on the host chip.
   """
-  buffer = defaultdict(list)
+  msg_buffer = defaultdict(list)
 
   for msg, data in log_iterator(log):
     if is_split_message(msg):
       # we received an insconsistent message so
       # we're discarding the entire sequence
-      if not is_consistent(buffer[type(msg)], msg):
+      if not is_consistent(msg_buffer[type(msg)], msg):
         logging.warn("Inconsistent log message found, skipping it.")
-        # clear the buffer
-        buffer[type(msg)] = []
+        # clear the msg_buffer
+        msg_buffer[type(msg)] = []
 
-      # add to latest message the buffer
-      buffer[type(msg)].append(msg)
+      # add to latest message the msg_buffer
+      msg_buffer[type(msg)].append(msg)
 
       if get_count(msg) == get_total(msg) - 1:
         # if this is the last message we reassemble the buffer into
         # a single message.
-        iter_buffer = iter(buffer[type(msg)])
+        iter_buffer = iter(msg_buffer[type(msg)])
         # get a template message then iteratively extend it.
         full_msg = iter_buffer.next()
         # TODO: this only works for observation types at the moment.
@@ -180,7 +179,7 @@ def complete_messages_only(log):
           full_msg.obs.extend(m.obs)
         # only the most recent data is used.
         yield full_msg, data
-        buffer[type(msg)] = []
+        msg_buffer[type(msg)] = []
     else:
       yield msg, data
 
