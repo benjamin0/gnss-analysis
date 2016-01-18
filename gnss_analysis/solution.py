@@ -9,7 +9,7 @@ from swiftnav.signal import GNSSSignal
 
 import gnss_analysis.constants as c
 
-from gnss_analysis import ephemeris
+from gnss_analysis import ephemeris, time_utils
 
 
 def _create_navigation_measurement(obs):
@@ -24,8 +24,7 @@ def _create_navigation_measurement(obs):
   assert isinstance(obs, pd.Series)
 
   lock_time = np.nan
-  # NOTE: this is using the time of transmission NOT the gpstime
-  tot = gpstime.GpsTime(wn=obs.wn, tow=obs.tot)
+  tot = gpstime.GpsTime(**time_utils.datetime_to_tow(obs['tot']))
   sid = GNSSSignal(sat=obs.name, band=0, constellation=0)
   # stuff all our known observations into a NavigationMeasurement object.
   nm = NavigationMeasurement(raw_pseudorange=obs.raw_pseudorange,
@@ -94,7 +93,7 @@ def libswiftnav_calc_PVT(observations):
   # observations should always be indexed by sid
   assert observations.index.name == 'sid'
   # make sure all the observations are from a single time
-  assert np.unique(observations['tow'].values).size == 1
+  assert np.unique(observations['time'].values).size == 1
   # make sure there aren't any duplicate satellite observations
   assert np.unique(observations.index).size == observations.shape[0]
   # create the navigation measurement objects
@@ -105,7 +104,7 @@ def libswiftnav_calc_PVT(observations):
     logging.warn("Single Point Position failed with flag %d" % flag)
   spp = {'pos_llh': spp.pos_llh,
          'pos_ecef': spp.pos_ecef,
-         'time': spp.time,
+         'time': time_utils.tow_to_datetime(**spp.time),
          'clock_offset': spp.clock_offset}
   # TODO: why are the lon, lat in radians?
   spp['pos_llh'] = (spp['pos_llh'][0] * 180. / np.pi,
@@ -164,8 +163,8 @@ def single_point_position(obs, max_iterations=15, tol=1e-4):
   sat_pos = obs[['sat_x', 'sat_y', 'sat_z']].values
   # we assume that all observations were made (or were propagated to)
   # a common time of arrival.
-  assert np.unique(obs['tow'].values).size == 1
-  toa = obs['tow'].values[0]
+  assert np.unique(obs['time'].values).size == 1
+  toa = obs['time'].values[0]
 
   # we are solving for the ECEF position, cur_x[:3], and clock error cur_x[3].
   cur_x = np.zeros(4)
@@ -174,7 +173,7 @@ def single_point_position(obs, max_iterations=15, tol=1e-4):
   for i in range(max_iterations):
     # Range converted into an approximate time of flight in secs.
     dist = np.linalg.norm(sat_pos - cur_x[:3], axis=1)
-    tof = dist / c.GPS_C
+    tof = time_utils.timedelta_from_seconds(dist / c.GPS_C)
     # Rotate the satellites relative to the ECEF to compensate for
     # earth's rotation.  We call this the line of sight position.
     los_pos = ephemeris.sagnac_rotation(sat_pos, time_of_flight=tof)
@@ -205,10 +204,10 @@ def single_point_position(obs, max_iterations=15, tol=1e-4):
     logging.warn("single_point_position failed to converge")
 
   pos_ecef = cur_x[:3]
-  time = toa + cur_x[3]
+  time = toa + time_utils.timedelta_from_seconds(cur_x[3])
 
   return {'pos_ecef': pos_ecef,
-          'time': {'wn': obs['wn'].values[0], 'tow': time},
+          'time': time,
           'clock_offset': cur_x[3],
           'converged': converged}
 

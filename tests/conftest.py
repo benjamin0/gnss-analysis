@@ -61,7 +61,7 @@ def ephemerides(jsonlog):
 
 @pytest.fixture()
 def synthetic_observations(ephemerides):
-  from gnss_analysis import synthetic, ephemeris
+  from gnss_analysis import synthetic
 
   # use swift nav's approximate location (in ECEF) as reference
   ref_loc = np.array([-2704369.61784456,
@@ -69,9 +69,7 @@ def synthetic_observations(ephemerides):
                       3884641.21270987])
 
   # Pick a common (arbitrary) time of transmission.
-  ref_time = ephemerides.iloc[0][['toe_wn', 'toe_tow']].copy()
-  tot = ref_time.rename({'toe_wn': 'wn', 'toe_tow': 'tow'})
-  tot['tow'] += 40
+  tot = ephemerides['toe'].values[0] + np.timedelta64(40, 's')
 
   return synthetic.observations_from_tot(ephemerides, ref_loc, tot,
                                          rover_clock_error=0.,

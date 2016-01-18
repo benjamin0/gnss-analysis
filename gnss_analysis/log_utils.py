@@ -126,7 +126,6 @@ def log_iterator(log):
     return log
 
 
-
 def complete_messages_only(log):
   """
   Occasionally SBP log entries are split over several messages.  In

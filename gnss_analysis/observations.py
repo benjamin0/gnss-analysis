@@ -34,6 +34,7 @@ from swiftnav.ephemeris import Ephemeris
 from swiftnav.observation import SingleDiff
 
 from gnss_analysis.constants import *
+from gnss_analysis import time_utils
 
 ###############################################################################
 # Misc. libswiftnav object constructors
@@ -79,11 +80,10 @@ def mk_ephemeris(eph):
                  'iode': 'iode',
                  'iodc': 'iodc'}
   kepler = {k: eph.get(v) for k, v in kepler_vars.iteritems()}
-  kepler['toc'] = {'wn': eph.toc_wn,
-                   'tow': eph.toc_tow}
 
-  return Ephemeris(toe={'wn': eph.toe_wn,
-                        'tow': eph.toe_tow},
+  kepler['toc'] = time_utils.datetime_to_tow(eph['toc'])
+
+  return Ephemeris(toe=time_utils.datetime_to_tow(eph['toe']),
                    valid=eph['valid'],
                    healthy=eph['healthy'],
                    kepler=kepler,

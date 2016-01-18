@@ -1,8 +1,8 @@
 import numpy as np
 
-import ephemeris
-import constants as c
-
+from gnss_analysis import ephemeris
+from gnss_analysis import constants as c
+from gnss_analysis import time_utils
 
 def observations_from_toa(ephemerides, location_ecef, toa,
                           *args, **kwdargs):
@@ -20,6 +20,8 @@ def observations_from_toa(ephemerides, location_ecef, toa,
   # a different distance.  Set the synchronized time of transmission
   # to be the 10th second interval before all the transmission times,
   # this ensures that all signals would have arrived before toa.
+
+  import ipdb; ipdb.set_trace()
   tot = {'wn': toa['wn'],
          'tow': np.round(np.min(tot['tow']), 1)}
   # then return the synthetic observations based off our new tot.
@@ -42,10 +44,8 @@ def observations_from_tot(ephemerides, location_ecef, tot,
     satellites.
   location_ecef : array-like
     A location given in earth center earth fixed coordinates.
-  tot : dict-like
-    The time of transmission.  This is assumed to be a dictionary
-    like object with fields 'wn' and 'tow' holding a unique
-    week number and time of week respectively.
+  tot : datetime64
+    The time of transmission in GPS time.
   
   Returns
   -------
@@ -53,28 +53,26 @@ def observations_from_tot(ephemerides, location_ecef, tot,
     A DataFrame holding a set of synthetic observations similar
     to what would be returned by simulate.simulate_from_log.
   """
-  assert np.unique(tot['wn']).size == 1
-  assert np.unique(tot['tow']).size == 1
+  #
+  assert tot.dtype.kind == 'M'
+  sat_state = ephemeris.calc_sat_state(ephemerides, tot)
   # The satellites all transmit at what they think is the same
   # time, but are actually off by 'clock_error' seconds
-  sat_state = ephemeris.calc_sat_state(ephemerides, tot)
-  obs_tot = ephemerides[['wn', 'tow']].copy()
-  obs_tot['wn'] = tot['wn']
-  obs_tot['tow'] = tot['tow']
-  actual_tot = obs_tot.copy()
-  actual_tot['tow'] -= sat_state['sat_clock_error']
+  actual_tot = tot
+  actual_tot -= time_utils.timedelta_from_seconds(sat_state['sat_clock_error'])
   # compute the time when the signal would have arrived at the receiver
   obs_toa = ephemeris.time_of_arrival(ephemerides,
                                       actual_tot,
                                       location_ecef)
   # the actual time of flight is the time between when the
   # signal arrived and when it was actually transmitted
-  actual_time_of_flight = obs_toa['tow'] - actual_tot['tow']
+  actual_time_of_flight = obs_toa - actual_tot
   # Set the nav time (the time for which we're trying to solve)
   # to be the next nearest tenth of a second after all the signals
   # arrived at the rover
-  nav_time = tot.copy()
-  nav_time['tow'] = np.round(obs_toa['tow'].max(), 1) + 0.1
+  assert obs_toa.dtype == '<M8[ns]'
+  max_as_tenths = np.ceil(np.max(obs_toa).astype('int64') * 1e-8)
+  nav_time = (max_as_tenths * 1e8).astype('datetime64[ns]')
 
   # In these next few steps we take a bunch of signals that arrived
   # asynchronously and nudge them forward so they look as they would
@@ -86,10 +84,8 @@ def observations_from_tot(ephemerides, location_ecef, tot,
   # The first order approximation of propagated time of transmission
   # is to simply push transmission times forward by the difference
   # between desired arrival time and actual.
-  propagated_tot = obs_tot.copy()
-  propagated_tot['tow'] = obs_tot['tow']
-  dt = (nav_time['tow'] - obs_toa['tow'])
-  propagated_tot['tow'] += dt
+  dt = (nav_time - obs_toa)
+  propagated_tot = tot + dt
 
   # During that time the satellites would have moved slightly, changing
   # the time of flight (and in turn the time of transmission).  To
@@ -112,24 +108,26 @@ def observations_from_tot(ephemerides, location_ecef, tot,
   # Then account for the rate of change in tot due to satellite velocity
   # ASSUMPTION: earth's rotation doesn't matter much here.  The difference
   # in los_pos would be O(dt * sat_vel / c) which should be extremelly small.
-  new_pos = los_sat_pos + dt.values[:, None] * sat_vel
+  dt_seconds = time_utils.seconds_from_timedelta(dt)
+  new_pos = los_sat_pos + dt_seconds[:, None] * sat_vel
   new_tof = np.linalg.norm(new_pos - location_ecef, axis=1) / c.GPS_C
+  new_tof = time_utils.timedelta_from_seconds(new_tof)
   # if the new time of flight is longer we need to subract from the
   # transmission time in order to get signals which would have arrived
   # simultaneously.
-  propagated_tot['tow'] -= (new_tof - actual_time_of_flight)
+  propagated_tot -= (new_tof - actual_time_of_flight)
 
   # ASSUMPTION: no noise!
-  raw_pseudorange = (nav_time['tow'] - propagated_tot['tow']) * c.GPS_C
-  raw_pseudorange += rover_clock_error * c.GPS_C
+  obs_tof_sec = time_utils.seconds_from_timedelta(nav_time - propagated_tot)
 
+  raw_pseudorange = obs_tof_sec * c.GPS_C
+  raw_pseudorange += rover_clock_error * c.GPS_C
   wave_length = c.GPS_C / c.GPS_L1_HZ
-  carrier_phase = actual_time_of_flight.values * c.GPS_C / wave_length
+  carrier_phase = obs_tof_sec * c.GPS_C / wave_length
 
   obs = ephemerides.copy()
   obs['raw_pseudorange'] = raw_pseudorange
-  obs['tow'] = nav_time['tow']
-  obs['wn'] = nav_time['wn']
+  obs['time'] = nav_time
   # carrier_pahse and doppler aren't created yet.
   obs['raw_doppler'] = np.nan
   obs['carrier_phase'] = carrier_phase
@@ -138,7 +136,7 @@ def observations_from_tot(ephemerides, location_ecef, tot,
   obs['ref_x'] = location_ecef[0]
   obs['ref_y'] = location_ecef[1]
   obs['ref_z'] = location_ecef[2]
-  obs['ref_t'] = nav_time['tow']
+  obs['ref_t'] = nav_time
   obs['ref_rover_clock_error'] = rover_clock_error
 
   return obs
