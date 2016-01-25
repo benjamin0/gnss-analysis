@@ -170,6 +170,9 @@ def parse_offset_applied(x):
 
 
 def parse_header(f):
+  """
+  Parses both navigation and observation RINEX headers.
+  """
   # negative widths represent ignored padding fields
   header = parse_version(f.next())
   assert header['version'] == '2.11'
