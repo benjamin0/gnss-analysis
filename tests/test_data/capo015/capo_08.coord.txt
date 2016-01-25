@@ -1,0 +1,87 @@
+                              ***IGS 08***
+                OAKLAND (CAPO),  CALIFORNIA
+
+ Retrieved from NGS DataBase on 04/17/14 at 14:38:42.
+ _____________________________________________________________________________ 
+|                                                                             |
+|         Antenna Reference Point(ARP): OAKLAND CORS ARP                      |
+|         ----------------------------------------------                      |
+|                             PID = DP2481                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Apr 2014 using 25 days of data.                                 |
+|     X =  -2693675.439 m     latitude    =  37 42 51.03095 N                 |
+|     Y =  -4273830.299 m     longitude   = 122 13 19.49357 W                 |
+|     Z =   3880383.140 m     ellipsoid height =  -20.855   m                 |
+|                                                                             |
+| IGS08 VELOCITY                                                              |
+| Predicted with HTDP_3.2.3 Apr 2014.                                         |
+|     VX =  -0.0222 m/yr      northward =   0.0131 m/yr                       |
+|     VY =   0.0235 m/yr      eastward  =  -0.0313 m/yr                       |
+|     VZ =   0.0104 m/yr      upward    =   0.0000 m/yr                       |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Apr 2014.                 |
+|     X =  -2693674.766 m     latitude    =  37 42 51.02058 N                 |
+|     Y =  -4273831.448 m     longitude   = 122 13 19.44532 W                 |
+|     Z =   3880383.210 m     ellipsoid height =  -20.327   m                 |
+|                                                                             |
+| NAD_83 (2011) VELOCITY                                                      |
+| Transformed from IGS08 velocity in Apr 2014.                                |
+|     VX =  -0.0058 m/yr      northward =   0.0262 m/yr                       |
+|     VY =   0.0239 m/yr      eastward  =  -0.0177 m/yr                       |
+|     VZ =   0.0199 m/yr      upward    =  -0.0014 m/yr                       |
+|_____________________________________________________________________________|
+|                                                                             |
+| L1 Phase Center of the current GPS antenna: OAKLAND CORS L1 PC C            |
+| ----------------------------------------------------------------            |
+| The L1/L2 Dorne Margolin antenna with choker antenna                        |
+| (Antenna Code = LEIAT504GG      LEIS) was installed on 01Mar2011.           |
+|        The L2 phase center is 0.030 m above the L1 phase center.            |
+|                             PID = DP2482                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Apr 2014 using 25 days of data.                                 |
+|     X =  -2693675.474 m     latitude    =  37 42 51.03096 N                 |
+|     Y =  -4273830.358 m     longitude   = 122 13 19.49353 W                 |
+|     Z =   3880383.194 m     ellipsoid height =  -20.768   m                 |
+|                                                                             |
+| The IGS08 VELOCITY of the L1 PC is the same as that for the ARP.            |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Apr 2014.                 |
+|     X =  -2693674.801 m     latitude    =  37 42 51.02059 N                 |
+|     Y =  -4273831.506 m     longitude   = 122 13 19.44527 W                 |
+|     Z =   3880383.264 m     ellipsoid height =  -20.240   m                 |
+|                                                                             |
+| The NAD_83 (2011) VELOCITY of the L1 PC is the same as that for the ARP.    |
+|_____________________________________________________________________________|
+
+
+ * Latitude, longitude and ellipsoid height are computed from their
+   corresponding cartesian coordinates using dimensions for the
+   GRS 80 ellipsoid: semi-major axis = 6,378,137.0 meters
+                          flattening = 1/298.257222101...
+
+
+ * WARNING: Mixing of antenna types can lead to errors of up to 10 cm.
+   in height unless antenna-phase-center variation and antenna-phase-center
+   offset are properly modeled.  See next comment.
+
+ * The coordinates shown on this page were computed using absolute antenna
+   calibrations.  CORS coordinates began using absolute antenna calibrations
+   beginning with IGS08 and NAD 83 (2011, MA11, PA11).  For additional
+   information on the derivation of these positions and velocities and
+   antenna calibrations consult:
+   http://geodesy.noaa.gov/CORS/coords.shtml
+   http://geodesy.noaa.gov/ANTCAL
+
+
+ * For more site specific information on the equipment history and
+   monumentation type consult:
+   ftp://geodesy.noaa.gov/cors/station_log/capo.log.txt
+   http://geodesy.noaa.gov/cgi-cors/corsage_2.prl?site=capo

@@ -1,0 +1,84 @@
+PROGRAM = datasheet95, VERSION = 8.8
+1        National Geodetic Survey,   Retrieval Date = NOVEMBER 10, 2015
+ DP2481 ***********************************************************************
+ DP2481  CORS        -  This is a GPS Continuously Operating Reference Station.
+ DP2481  DESIGNATION -  OAKLAND CORS ARP
+ DP2481  CORS_ID     -  CAPO
+ DP2481  PID         -  DP2481
+ DP2481  STATE/COUNTY-  CA/ALAMEDA
+ DP2481  COUNTRY     -  US
+ DP2481  USGS QUAD   -  SAN LEANDRO (1993)
+ DP2481
+ DP2481                         *CURRENT SURVEY CONTROL
+ DP2481  ______________________________________________________________________
+ DP2481* NAD 83(2011) POSITION- 37 42 51.02058(N) 122 13 19.44532(W)   ADJUSTED  
+ DP2481* NAD 83(2011) ELLIP HT-   -20.327 (meters)        (04/??/14)   ADJUSTED
+ DP2481* NAD 83(2011) EPOCH   -  2010.00
+ DP2481* NAVD 88 ORTHO HEIGHT -          **(meters)           **(feet)           
+ DP2481  ______________________________________________________________________
+ DP2481  NAD 83(2011) X  - -2,693,674.766 (meters)                     COMP
+ DP2481  NAD 83(2011) Y  - -4,273,831.448 (meters)                     COMP
+ DP2481  NAD 83(2011) Z  -  3,880,383.210 (meters)                     COMP
+ DP2481  GEOID HEIGHT    -        -32.512 (meters)                     GEOID12B
+ DP2481
+ DP2481.Formal positional accuracy estimates are not available for this CORS
+ DP2481.because its coordinates were determined in part using modeled
+ DP2481.velocities. Approximate one-sigma accuracies for latitude, longitude,
+ DP2481.and ellipsoid height can be obtained from the short-term time series.
+ DP2481.Additional information regarding modeled velocities is available on
+ DP2481.the CORS Coordinates and Multi-Year CORS Solution FAQ web pages.
+ DP2481
+ DP2481.The coordinates were established by GPS observations
+ DP2481.and adjusted by the National Geodetic Survey in April 2014.
+ DP2481
+ DP2481.NAD 83(2011) refers to NAD 83 coordinates where the reference 
+ DP2481.frame has been affixed to the stable North American Tectonic Plate. 
+ DP2481
+ DP2481.The coordinates are valid at the epoch date displayed above
+ DP2481.which is a decimal equivalence of Year/Month/Day.
+ DP2481
+ DP2481.Significant digits in the geoid height do not necessarily reflect accuracy.
+ DP2481.GEOID12B height accuracy estimate available here.
+ DP2481
+ DP2481.The PID for the CORS L1 Phase Center is DP2482.
+ DP2481
+ DP2481.The XYZ, and position/ellipsoidal ht. are equivalent.
+ DP2481
+ DP2481.The ellipsoidal height was determined by GPS observations
+ DP2481.and is referenced to NAD 83.
+ DP2481
+ DP2481. The following values were computed from the NAD 83(2011) position.
+ DP2481
+ DP2481;                    North         East     Units Scale Factor Converg.
+ DP2481;SPC CA 3     -   636,146.698 1,848,180.637   MT  0.99992939   -1 03 15.5
+ DP2481;SPC CA 3     - 2,087,091.29  6,063,572.64   sFT  0.99992939   -1 03 15.5
+ DP2481;UTM  10      - 4,174,387.373   568,565.114   MT  0.99965790   +0 28 33.2
+ DP2481
+ DP2481!             -  Elev Factor  x  Scale Factor =   Combined Factor
+ DP2481!SPC CA 3     -   1.00000319  x   0.99992939  =   0.99993258
+ DP2481!UTM  10      -   1.00000319  x   0.99965790  =   0.99966109
+ DP2481
+ DP2481                          SUPERSEDED SURVEY CONTROL
+ DP2481
+ DP2481.No superseded survey control is available for this station.
+ DP2481
+ DP2481_U.S. NATIONAL GRID SPATIAL ADDRESS: 10SEG6856574387(NAD 83)
+ DP2481
+ DP2481_MARKER: STATION IS THE ANTENNA REFERENCE POINT OF THE GPS ANTENNA
+ DP2481
+ DP2481                          STATION DESCRIPTION
+ DP2481
+ DP2481'DESCRIBED BY NATIONAL GEODETIC SURVEY 2014
+ DP2481'STATION IS A GPS CORS.  LATEST INFORMATION INCLUDING POSITIONS AND
+ DP2481'VELOCITIES ARE AVAILABLE IN THE COORDINATE AND LOG FILES ACCESSIBLE
+ DP2481'BY ANONYMOUS FTP OR THE WORLDWIDE WEB.
+ DP2481'   ftp://cors.ngs.noaa.gov/cors/README.txt
+ DP2481'   ftp://cors.ngs.noaa.gov/cors/coord/coord_08 
+ DP2481'   ftp://cors.ngs.noaa.gov/cors/station_log 
+ DP2481'   http://geodesy.noaa.gov/CORS
+
+ *** retrieval complete.
+ Elapsed Time = 00:00:01
+
+
+
