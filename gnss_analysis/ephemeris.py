@@ -130,7 +130,7 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
   return tot
 
 
-def time_of_arrival(eph, time_of_transmission, ref_loc,
+def time_of_arrival(eph, tot, ref_loc,
                     max_iterations=1, tol=1e-12):
   """
   Computes the time of arrival of a signal sent at some transmission
@@ -144,7 +144,7 @@ def time_of_arrival(eph, time_of_transmission, ref_loc,
   ----------
   eph : pd.DataFrame
     A DataFrame holding ephemeris parameters.
-  time_of_transmission : datetime64
+  tot : datetime64
     Represents the GPS sytem time when a transmission was sent.
   ref_loc : array-like
     An array like holding the ECEF coordinates of a reference location
@@ -162,9 +162,9 @@ def time_of_arrival(eph, time_of_transmission, ref_loc,
     A data frame holding the week number and time of week that represent
     the time of arrival.
   """
-  old_toa = time_of_transmission
+  old_toa = tot
   # compute the satellite state at time of transmission
-  sat_state = calc_sat_state(eph, time_of_transmission)
+  sat_state = calc_sat_state(eph, tot)
   sat_pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
   dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
   # Note that just one iteration is typically enough to get within mm
@@ -179,7 +179,7 @@ def time_of_arrival(eph, time_of_transmission, ref_loc,
     # new time of arrival
     dists = np.linalg.norm(los_pos - ref_loc, axis=1)
     correction = time_utils.timedelta_from_seconds(dists / c.GPS_C)
-    toa = time_of_transmission + correction
+    toa = tot + correction
     # check for convergence
     if np.all(np.abs(time_utils.seconds_from_timedelta(toa - old_toa))) < tol:
       break
@@ -250,6 +250,8 @@ def calc_sat_state(eph, t=None):
   if t is None and 'time' in eph:
     t = eph['time']
 
+  # In order to support the use of pd.Timestamp objects for `t` we do
+  # some duck typing here to optionally convert to datetime64
   if hasattr(t, 'to_datetime64'):
     t = t.to_datetime64()
 
@@ -259,6 +261,7 @@ def calc_sat_state(eph, t=None):
   clock_err = (eph.af0.values +
                dt_toc * (eph.af1.values + dt_toc * eph.af2.values) -
                eph.tgd.values)
+  # this is the derivative of the taylor approximation above.
   clock_rate_err = eph.af1.values + 2.0 * dt_toc * eph.af2.values
 
   # Seconds from the time from ephemerides reference epoch (toe)

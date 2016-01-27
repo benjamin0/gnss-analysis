@@ -23,7 +23,10 @@ def split_every(n, iterable):
   """
   i = iter(iterable)
   piece = list(itertools.islice(i, n))
-  while len(piece) == n:
+  while len(piece) > 0:
+    if len(piece) != n:
+      raise ValueError("Expected the length of iterable to"
+                       " be a multiple of n.")
     yield piece
     piece = list(itertools.islice(i, n))
 
@@ -173,14 +176,17 @@ def parse_header(f):
   """
   Parses both navigation and observation RINEX headers.
   """
-  # negative widths represent ignored padding fields
   header = parse_version(f.next())
-  assert header['version'] == '2.11'
+  if not header['version'] == '2.11':
+    raise AssertionError('RINEX parsing only supports version 2.11')
   # we only support observation and navigation files
-  assert header['file_type'] in ['O', 'N']
+  if not header['file_type'] in ['O', 'N']:
+    raise AssertionError("RINEX parsing only supports observation and"
+                         " navigation files")
   # we only support GPS (or mixed) data at the moment.
   # A blank sat_system implies we're looking at a navigation message.
-  assert header['sat_system'] in ['', 'M', 'G']
+  if not header['sat_system'] in ['', 'M', 'G']:
+    raise AssertionError("RINEX parsing only supports GPS or Mixed data")
   # each line in a header is 60 char of content and 20 indicating the type
   content_parser = build_parser('60s 20s')
   # This holds all the possible header content types we processs

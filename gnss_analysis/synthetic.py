@@ -20,8 +20,6 @@ def observations_from_toa(ephemerides, location_ecef, toa,
   # a different distance.  Set the synchronized time of transmission
   # to be the 10th second interval before all the transmission times,
   # this ensures that all signals would have arrived before toa.
-
-  import ipdb; ipdb.set_trace()
   tot = {'wn': toa['wn'],
          'tow': np.round(np.min(tot['tow']), 1)}
   # then return the synthetic observations based off our new tot.
