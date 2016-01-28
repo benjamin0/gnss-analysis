@@ -10,6 +10,18 @@ from gnss_analysis import constants as c
 from gnss_analysis import time_utils
 
 
+def normalize(sbp_obs):
+  """
+  Makes changes to an sbp observation in order to conform with
+  industry standard (RINEX) conventions.
+  """
+  # TODO: Eventually sbp logs will already conform to RINEX
+  #   conventions, in which case we can remove this function.
+  sbp_obs = sbp_obs.copy()
+  sbp_obs['carrier_phase'] = -sbp_obs['carrier_phase']
+  return sbp_obs
+
+
 def get_source(msg):
   """
   Determines if a message originated at the rover or base station.

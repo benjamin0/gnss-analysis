@@ -38,7 +38,7 @@ def test_matches_piksi(jsonlog):
 
     py_pos = solution.single_point_position(state['rover'])
     piksi_pos = state['rover_spp_ecef'][['x', 'y', 'z']]
-    # right now 5cm agreement is all we can get (often less that a cm though).
+    # right now 5cm agreement is all we can get (often less than a cm though).
     # This is possibly due to rounding of the pseudoranges during message
     # transmission and the fact that observations are propagated using doppler,
     # but doppler is not sent in the messages.  Doppler can be inferred using

@@ -218,6 +218,9 @@ def solution(states, dgnss_filter=None):
   order is somewhat reversed since on the piksi the solve is made,
   then (modified) observations are sent.  So this back first infers
   missing variables, then solves.
+  
+  Notes are added to indicate the actual order of what happens in
+  the equivalent thread on the piksi.
   """
 
   for state in states:
@@ -235,7 +238,7 @@ def solution(states, dgnss_filter=None):
     # already been done in the simulate module.
 
     # compute the single point position
-    rover_pos = single_point_position(state['rover'])
+    state['rover_pos'] = single_point_position(state['rover'])
 
     # TODO: WIP, plug in DGNSS filters here.
     # if a filter is present and we have enough base observations
@@ -248,8 +251,8 @@ def solution(states, dgnss_filter=None):
       dgnss_filter.update(state)
       # TODO: if low-latency make propagated sdiffs
       # NOTE: at this point on the piksi baseline messages are output.
-      bl = dgnss_filter.get_baseline(state)
-    # NOTE: only now are observations sent from the piksi
+      state['rover_pos']['baseline'] = dgnss_filter.get_baseline(state)
 
-    yield rover_pos
+    # NOTE: only now are observations sent from the piksi
+    yield state
 
