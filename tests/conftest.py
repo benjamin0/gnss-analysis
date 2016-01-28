@@ -90,7 +90,7 @@ def synthetic_state(ephemerides):
                                    tot)
 
 @pytest.fixture()
-def synthetic_stationary_state_sequence(ephemerides):
+def synthetic_stationary_states(ephemerides):
   """
   Returns an iterator over synthetic states for which the rover and
   base station are stationary.
@@ -102,13 +102,15 @@ def synthetic_stationary_state_sequence(ephemerides):
     base_ecef = locations.LEICA_ABSOLUTE
 
     for dt in time_steps:
-      toa = ephemerides['time'] + np.timedelta64(100 + dt, 's')
+      toa = np.max(ephemerides['toe'].values) + np.timedelta64(100 + int(1e3 * dt), 'ms')
       state = synthetic.synthetic_state(ephemerides, rover_ecef,
                                         base_ecef, toa)
       state['base'] = ephemeris.add_satellite_state(state['base'],
-                                                    state['ephemeris'])
+                                                    state['ephemeris'],
+                                                    account_for_sat_error=False)
       state['rover'] = ephemeris.add_satellite_state(state['rover'],
-                                                     state['ephemeris'])
-      yield state
+                                                     state['ephemeris'],
+                                                     account_for_sat_error=False)
+      yield state.copy()
 
   return iter_states(np.linspace(0., 100., 1001.))
