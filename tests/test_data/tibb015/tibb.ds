@@ -1,0 +1,84 @@
+PROGRAM = datasheet95, VERSION = 8.8
+1        National Geodetic Survey,   Retrieval Date = NOVEMBER 10, 2015
+ DO2389 ***********************************************************************
+ DO2389  CORS        -  This is a GPS Continuously Operating Reference Station.
+ DO2389  DESIGNATION -  TIBURON PENINSUL CORS ARP
+ DO2389  CORS_ID     -  TIBB
+ DO2389  PID         -  DO2389
+ DO2389  STATE/COUNTY-  CA/MARIN
+ DO2389  COUNTRY     -  US
+ DO2389  USGS QUAD   -  SAN QUENTIN (1995)
+ DO2389
+ DO2389                         *CURRENT SURVEY CONTROL
+ DO2389  ______________________________________________________________________
+ DO2389* NAD 83(2011) POSITION- 37 53 27.13938(N) 122 26 51.31741(W)   ADJUSTED  
+ DO2389* NAD 83(2011) ELLIP HT-   -20.557 (meters)        (12/??/12)   ADJUSTED
+ DO2389* NAD 83(2011) EPOCH   -  2010.00
+ DO2389* NAVD 88 ORTHO HEIGHT -          **(meters)           **(feet)           
+ DO2389  ______________________________________________________________________
+ DO2389  NAD 83(2011) X  - -2,704,026.134 (meters)                     COMP
+ DO2389  NAD 83(2011) Y  - -4,253,051.245 (meters)                     COMP
+ DO2389  NAD 83(2011) Z  -  3,895,879.305 (meters)                     COMP
+ DO2389  GEOID HEIGHT    -        -32.375 (meters)                     GEOID12B
+ DO2389
+ DO2389.Formal positional accuracy estimates are not available for this CORS
+ DO2389.because its coordinates were determined in part using modeled
+ DO2389.velocities. Approximate one-sigma accuracies for latitude, longitude,
+ DO2389.and ellipsoid height can be obtained from the short-term time series.
+ DO2389.Additional information regarding modeled velocities is available on
+ DO2389.the CORS Coordinates and Multi-Year CORS Solution FAQ web pages.
+ DO2389
+ DO2389.The coordinates were established by GPS observations
+ DO2389.and adjusted by the National Geodetic Survey in December 2012.
+ DO2389
+ DO2389.NAD 83(2011) refers to NAD 83 coordinates where the reference 
+ DO2389.frame has been affixed to the stable North American Tectonic Plate. 
+ DO2389
+ DO2389.The coordinates are valid at the epoch date displayed above
+ DO2389.which is a decimal equivalence of Year/Month/Day.
+ DO2389
+ DO2389.Significant digits in the geoid height do not necessarily reflect accuracy.
+ DO2389.GEOID12B height accuracy estimate available here.
+ DO2389
+ DO2389.The PID for the CORS L1 Phase Center is DO2390.
+ DO2389
+ DO2389.The XYZ, and position/ellipsoidal ht. are equivalent.
+ DO2389
+ DO2389.The ellipsoidal height was determined by GPS observations
+ DO2389.and is referenced to NAD 83.
+ DO2389
+ DO2389. The following values were computed from the NAD 83(2011) position.
+ DO2389
+ DO2389;                    North         East     Units Scale Factor Converg.
+ DO2389;SPC CA 3     -   656,143.264 1,828,709.348   MT  0.99993214   -1 11 32.6
+ DO2389;SPC CA 3     - 2,152,696.69  5,999,690.59   sFT  0.99993214   -1 11 32.6
+ DO2389;UTM  10      - 4,193,850.969   548,572.252   MT  0.99962906   +0 20 21.4
+ DO2389
+ DO2389!             -  Elev Factor  x  Scale Factor =   Combined Factor
+ DO2389!SPC CA 3     -   1.00000323  x   0.99993214  =   0.99993537
+ DO2389!UTM  10      -   1.00000323  x   0.99962906  =   0.99963228
+ DO2389
+ DO2389                          SUPERSEDED SURVEY CONTROL
+ DO2389
+ DO2389.No superseded survey control is available for this station.
+ DO2389
+ DO2389_U.S. NATIONAL GRID SPATIAL ADDRESS: 10SEG4857293850(NAD 83)
+ DO2389
+ DO2389_MARKER: STATION IS THE ANTENNA REFERENCE POINT OF THE GPS ANTENNA
+ DO2389
+ DO2389                          STATION DESCRIPTION
+ DO2389
+ DO2389'DESCRIBED BY NATIONAL GEODETIC SURVEY 2012
+ DO2389'STATION IS A GPS CORS.  LATEST INFORMATION INCLUDING POSITIONS AND
+ DO2389'VELOCITIES ARE AVAILABLE IN THE COORDINATE AND LOG FILES ACCESSIBLE
+ DO2389'BY ANONYMOUS FTP OR THE WORLDWIDE WEB.
+ DO2389'   ftp://cors.ngs.noaa.gov/cors/README.txt
+ DO2389'   ftp://cors.ngs.noaa.gov/cors/coord/coord_08 
+ DO2389'   ftp://cors.ngs.noaa.gov/cors/station_log 
+ DO2389'   http://geodesy.noaa.gov/CORS
+
+ *** retrieval complete.
+ Elapsed Time = 00:00:01
+
+
+

@@ -15,6 +15,7 @@ constants.py
 
 Holds constants from libswiftnav as well as any that are gnss_analysis specific.
 """
+import numpy as np
 
 from swiftnav import constants as sc
 
@@ -83,3 +84,4 @@ EPHEMERIS_TOL = 3600 * 4
 # Constants from libswiftnav (include/libswiftnav/constants.h)
 MAX_SATS = 32
 WEEK_SECS = 7 * 24 * 60 * 60
+GPS_WEEK_0 = np.datetime64('1980-01-06T00:00:00Z', 'ns')

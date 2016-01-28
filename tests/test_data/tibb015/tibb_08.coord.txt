@@ -1,0 +1,111 @@
+                              ***IGS 08***
+                TIBURON PENINSUL (TIBB),  CALIFORNIA
+
+ Retrieved from NGS DataBase on 12/05/12 at 11:18:14.
+ _____________________________________________________________________________ 
+|                                                                             |
+|         Antenna Reference Point(ARP): TIBURON PENINSUL CORS ARP             |
+|         -------------------------------------------------------             |
+|                             PID = DO2389                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Dec 2012 using 13 days of data.                                 |
+|     X =  -2704026.811 m     latitude    =  37 53 27.14944 N                 |
+|     Y =  -4253050.104 m     longitude   = 122 26 51.36586 W                 |
+|     Z =   3895879.231 m     ellipsoid height =  -21.076   m                 |
+|                                                                             |
+| IGS08 VELOCITY                                                              |
+| Predicted with HTDP_3.2.3 Dec 2012.                                         |
+|     VX =  -0.0216 m/yr      northward =   0.0148 m/yr                       |
+|     VY =   0.0245 m/yr      eastward  =  -0.0314 m/yr                       |
+|     VZ =   0.0117 m/yr      upward    =   0.0000 m/yr                       |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Dec 2012.                 |
+|     X =  -2704026.134 m     latitude    =  37 53 27.13938 N                 |
+|     Y =  -4253051.245 m     longitude   = 122 26 51.31741 W                 |
+|     Z =   3895879.305 m     ellipsoid height =  -20.557   m                 |
+|                                                                             |
+| NAD_83 (2011) VELOCITY                                                      |
+| Transformed from IGS08 velocity in Dec 2012.                                |
+|     VX =  -0.0052 m/yr      northward =   0.0280 m/yr                       |
+|     VY =   0.0249 m/yr      eastward  =  -0.0177 m/yr                       |
+|     VZ =   0.0213 m/yr      upward    =  -0.0013 m/yr                       |
+|_____________________________________________________________________________|
+|                                                                             |
+| L1 Phase Center of the current GPS antenna: TIBURON PENINSUL CORS L1 PC C   |
+| -------------------------------------------------------------------------   |
+| The Dorne Margolin with chokerings, Model 70 antenna                        |
+| (Antenna Code = ASH701945B_M    SCIT) was installed on 30Sep1999.           |
+|        The L2 phase center is 0.028 m above the L1 phase center.            |
+|                             PID = DO2390                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Dec 2012 using 13 days of data.                                 |
+|     X =  -2704026.849 m     latitude    =  37 53 27.14946 N                 |
+|     Y =  -4253050.163 m     longitude   = 122 26 51.36587 W                 |
+|     Z =   3895879.287 m     ellipsoid height =  -20.986   m                 |
+|                                                                             |
+| The IGS08 VELOCITY of the L1 PC is the same as that for the ARP.            |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Dec 2012.                 |
+|     X =  -2704026.172 m     latitude    =  37 53 27.13940 N                 |
+|     Y =  -4253051.304 m     longitude   = 122 26 51.31742 W                 |
+|     Z =   3895879.360 m     ellipsoid height =  -20.468   m                 |
+|                                                                             |
+| The NAD_83 (2011) VELOCITY of the L1 PC is the same as that for the ARP.    |
+|_____________________________________________________________________________|
+|                                                                             |
+|         Monument: TIBURON PENINSUL GRP                                      |
+|         ------------------------------                                      |
+|                             PID = AI4507                                    |
+|         Inscribed: UNKNOWN                                                  |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Dec 2012 using 13 days of data.                                 |
+|     X =  -2704026.807 m     latitude    =  37 53 27.14944 N                 |
+|     Y =  -4253050.099 m     longitude   = 122 26 51.36586 W                 |
+|     Z =   3895879.226 m     ellipsoid height =  -21.084   m                 |
+|                                                                             |
+| The IGS08 VELOCITY of the monument is the same as that for the ARP.         |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Dec 2012.                 |
+|     X =  -2704026.130 m     latitude    =  37 53 27.13938 N                 |
+|     Y =  -4253051.240 m     longitude   = 122 26 51.31741 W                 |
+|     Z =   3895879.300 m     ellipsoid height =  -20.565   m                 |
+|                                                                             |
+| The NAD_83 (2011) VELOCITY of the monument is the same as that for the ARP. |
+|_____________________________________________________________________________|
+
+
+ * Latitude, longitude and ellipsoid height are computed from their
+   corresponding cartesian coordinates using dimensions for the
+   GRS 80 ellipsoid: semi-major axis = 6,378,137.0 meters
+                          flattening = 1/298.257222101...
+
+
+ * WARNING: Mixing of antenna types can lead to errors of up to 10 cm.
+   in height unless antenna-phase-center variation and antenna-phase-center
+   offset are properly modeled.  See next comment.
+
+ * The coordinates shown on this page were computed using absolute antenna
+   calibrations.  CORS coordinates began using absolute antenna calibrations
+   beginning with IGS08 and NAD 83 (2011, MA11, PA11).  For additional
+   information on the derivation of these positions and velocities and
+   antenna calibrations consult:
+   http://geodesy.noaa.gov/CORS/coords.shtml
+   http://geodesy.noaa.gov/ANTCAL
+
+
+ * For more site specific information on the equipment history and
+   monumentation type consult:
+   ftp://geodesy.noaa.gov/cors/station_log/tibb.log.txt
+   http://geodesy.noaa.gov/cgi-cors/corsage_2.prl?site=tibb

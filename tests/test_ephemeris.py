@@ -1,14 +1,12 @@
 import pytest
-import logging
 import numpy as np
 import pandas as pd
 
 from swiftnav import time as gpstime
-from swiftnav import ephemeris as swiftnav_ephemeris
 
 import gnss_analysis.constants as c
 
-from gnss_analysis import ephemeris, observations, locations
+from gnss_analysis import ephemeris, observations, locations, time_utils
 
 
 def test_calc_sat_state(ephemerides):
@@ -17,10 +15,9 @@ def test_calc_sat_state(ephemerides):
   version of calc_sat_state matches the c implementation.
   """
   n = ephemerides.shape[0]
-  time = ephemerides[['wn', 'tow']].copy()
-  time['tow'] += 1e-3 * np.random.normal(size=n)
-
-  ephemerides['toc_wn'] = ephemerides['toe_wn']
+  time = ephemerides['time'].copy()
+  noise = 1e-3 * np.random.normal(size=n)
+  time += time_utils.timedelta_from_seconds(noise)
 
   # make sure we've added a fit interval
   assert 'fit_interval' in ephemerides
@@ -31,54 +28,41 @@ def test_calc_sat_state(ephemerides):
     eph = ephemerides.iloc[[i]]
     eph_obj = observations.mk_ephemeris(eph.reset_index())
     # compute the distance to satellite at the time of observation
-    gpst = gpstime.GpsTime(wn=time.iloc[i]['wn'], tow=time.iloc[i]['tow'])
+    wn_tow = time_utils.datetime_to_tow(time.values[i])
+    gpst = gpstime.GpsTime(**wn_tow)
     expected = eph_obj.calc_sat_state(gpst)
-    another = ephemeris.calc_sat_state(eph, time.iloc[i])
-    act = actual.iloc[i, :]
+    another = ephemeris.calc_sat_state(eph, time.iloc[[i]])
+    act = actual.iloc[[i], :]
 
     # make sure bulk and individual sat state error computations
     # are identical
     assert np.all(act == another)
     pos, vel, clock_error, clock_error_rate = expected
-    # make sure positions agree within a micrometer
-    assert np.all(np.abs(act[['sat_x', 'sat_y', 'sat_z']] - pos) < 1e-6)
-    # make sure velocities agree within a micrometer/second
-    assert np.all(np.abs(act[['sat_v_x', 'sat_v_y', 'sat_v_z']] - vel) < 1e-6)
+    # make sure positions agree within a mm
+    assert np.all(np.abs(act[['sat_x', 'sat_y', 'sat_z']] - pos) < 1e-3)
+    # make sure velocities agree within a mm/second
+    assert np.all(np.abs(act[['sat_v_x', 'sat_v_y', 'sat_v_z']] - vel) < 1e-3)
     # make sure clock error agree within a femtosecond
-    assert np.abs(clock_error - act['sat_clock_error']) < 1e-12
+    assert np.all(np.abs(clock_error - act['sat_clock_error']) < 1e-12)
     # make sure clock error rate agrees within a femtosecond / second
-    assert np.abs(clock_error_rate - act['sat_clock_error_rate']) < 1e-12
+    assert np.all(np.abs(clock_error_rate - act['sat_clock_error_rate']) < 1e-12)
 
   # Test with the time empbedded in the ephemerides object
-  ephemerides['wn'] = time['wn']
-  ephemerides['tow'] = time['tow']
+  ephemerides['time'] = time
   another = ephemeris.calc_sat_state(ephemerides)
   np.testing.assert_array_equal(actual.values, another.values)
 
-  # try with a time that is equivalent, but definied with negative
-  # time of week and make sure that doesn't break anything
-  neg_tow = time.copy()
-  neg_tow['wn'] += 1
-  neg_tow['tow'] -= c.WEEK_SECS
-  assert np.all(0 == ephemeris.gpsdifftime(neg_tow['wn'], neg_tow['tow'],
-                                           time['wn'], time['tow']))
-  another = ephemeris.calc_sat_state(ephemerides, neg_tow)
-  # make sure nothing (except the wn and tow) are different.
-  np.testing.assert_array_almost_equal(another.drop(['sat_tow', 'sat_wn'],
-                                                    axis=1),
-                                       actual.drop(['sat_tow', 'sat_wn'],
-                                                   axis=1))
-
-
 
 def test_sagnac_rotation(ephemerides):
-  time = ephemerides[['wn', 'tow']].copy()
+  time = ephemerides['time'].copy()
   n = ephemerides.shape[0]
-  time['tow'] += 40 + 1e-3 * np.random.normal(size=n)
+  noise = 40 + 1e-3 * np.random.normal(size=n)
+  time += time_utils.timedelta_from_seconds(noise)
 
   sat_state = ephemeris.calc_sat_state(ephemerides, time)
 
   time_of_flight = np.random.normal(0.07, 0.01, size=n)
+  time_of_flight = time_utils.timedelta_from_seconds(time_of_flight)
   rotated = ephemeris.sagnac_rotation(sat_state[['sat_x', 'sat_y', 'sat_z']],
                                       time_of_flight=time_of_flight)
 
@@ -140,17 +124,18 @@ def test_add_satellite_state(ephemerides):
   """
   Makes sure that add_satellite_state performs as expected
   """
-  ref_time = ephemerides.iloc[0][['wn', 'tow']].copy()
-  ref_time['tow'] += 40
+  ref_time = ephemerides.iloc[0]['time']
+  ref_time = ref_time.to_datetime64() + time_utils.timedelta_from_seconds(40)
 
   # make some random transmission times
   np.random.seed(1982)
-  tot = ref_time['tow'] - np.random.normal(0.08, 0.01, size=ephemerides.shape[0])
+  noise = np.random.normal(0.08, 0.01, size=ephemerides.shape[0])
+  tot = ref_time - time_utils.timedelta_from_seconds(noise)
   # compute the corresponding raw_pseudoranges according to the method used in
   # track.c:calc_navigation_measurements
-  expected = ephemeris.calc_sat_state(ephemerides, {'wn': ref_time['wn'],
-                                                    'tow': tot})
-  expected['raw_pseudorange'] = (ref_time['tow'] - tot) * c.GPS_C
+  expected = ephemeris.calc_sat_state(ephemerides, tot)
+  tof = time_utils.seconds_from_timedelta(ref_time - tot)
+  expected['raw_pseudorange'] = tof * c.GPS_C
   expected['raw_doppler'] = np.random.normal(100., 100., size=expected.shape[0])
   expected['tot'] = tot
   expected['pseudorange'] = expected['raw_pseudorange'] + expected.sat_clock_error * c.GPS_C
@@ -158,12 +143,16 @@ def test_add_satellite_state(ephemerides):
 
   def equals_expected(to_test):
     _, to_test = expected.align(to_test, 'left')
-    return (expected.values == to_test.values).all()
+    for (k, x), (_, y) in zip(expected.iteritems(),
+                              to_test.iteritems()):
+      if not np.all(x == y):
+        return False
+    return True
 
   orig = ephemerides.copy()
   orig['raw_pseudorange'] = expected['raw_pseudorange']
   orig['raw_doppler'] = expected['raw_doppler']
-  orig['tow'] = ref_time['tow']
+  orig['time'] = ref_time
 
   actual = ephemeris.add_satellite_state(orig)
   assert equals_expected(actual)
@@ -185,7 +174,7 @@ def test_add_satellite_state(ephemerides):
   assert equals_expected(another)
 
   # make sure we can modify an object it it won't change the original
-  another['tow'] += 5
+  another['time'] += time_utils.timedelta_from_seconds(5)
   assert equals_expected(actual)
 
 
@@ -195,8 +184,8 @@ def test_time_of_transmission_vectorization(ephemerides):
   the output if you pipe individual satellites through to
   ensure there aren't strange vectorization issues.
   """
-  ref_time = ephemerides.iloc[0][['wn', 'tow']].copy()
-  ref_time['tow'] += 40
+  ref_time = ephemerides.iloc[0]['time'].to_datetime64()
+  ref_time += time_utils.timedelta_from_seconds(40)
   ref_loc = locations.NOVATEL_ABSOLUTE
 
   # a pretty straight forward consistency check that makes sure
@@ -205,7 +194,7 @@ def test_time_of_transmission_vectorization(ephemerides):
   for i in range(full.shape[0]):
     single = ephemeris.time_of_transmission(ephemerides.iloc[[i]],
                                             ref_time, ref_loc)
-    assert np.all(full.iloc[[i]] == single)
+    assert full[i] == single[0]
 
   # make sure the default iterations is basically
   # the same as after 10
@@ -214,7 +203,8 @@ def test_time_of_transmission_vectorization(ephemerides):
                                        ref_loc,
                                        max_iterations=10,
                                        tol=1e-12)
-  assert np.all(np.abs(ten - full) <= 1e-9)
+  t_diff = time_utils.seconds_from_timedelta(ten - full)
+  assert np.all(np.abs(t_diff) <= 1e-9)
 
   # make sure the algorithm converged and is less than
   # the convergence tolerance
@@ -223,7 +213,8 @@ def test_time_of_transmission_vectorization(ephemerides):
                                         ref_loc,
                                         max_iterations=9,
                                         tol=0)
-  np.all(np.abs(nine - ten) < 1e-12)
+  t_diff = time_utils.seconds_from_timedelta(nine - ten)
+  np.all(np.abs(t_diff) < 1e-12)
 
 
 def test_time_of_roundtrip(ephemerides):
@@ -233,8 +224,9 @@ def test_time_of_roundtrip(ephemerides):
   backs out the time of transmission to make sure it matches.
   """
   n = ephemerides.shape[0]
-  tot = ephemerides[['wn', 'tow']].copy()
-  tot['tow'] += 40 + np.random.normal(0.1, 0.1, size=n)
+  tot = ephemerides['time'].copy()
+  noise = np.random.normal(0.1, 0.1, size=n)
+  tot += 40 + time_utils.timedelta_from_seconds(noise)
   ref_loc = locations.NOVATEL_ABSOLUTE
 
   # compute the time of arrival for a signal leaving at transmission time from
@@ -244,43 +236,23 @@ def test_time_of_roundtrip(ephemerides):
   actual_tot = ephemeris.time_of_transmission(ephemerides,
                                               time_of_arrival=toa,
                                               ref_loc=ref_loc)
-  assert np.all(np.abs(tot['tow'].values - actual_tot['tow'].values) < 1e-12)
-
-
-def test_gpsdifftime():
-  tests = [({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow': 0}, 1),
-           # trivial case.
-           ({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow': 1}, 0),
-           # These next two make sure that the difference between two times, one of which
-           # has a negative time of week is equivalent to the difference between two
-           # properly defined gps times.
-           ({'end_wn': 0, 'end_tow': 1, 'start_wn': 0, 'start_tow':-1}, 2),
-           ({'end_wn': 0, 'end_tow': 1, 'start_wn':-1, 'start_tow': c.WEEK_SECS - 1}, 2),
-           # Make sure the same time of week but incremented wn is exactly one week apart.
-           ({'end_wn': 1, 'end_tow': 0, 'start_wn': 0, 'start_tow': 0}, c.WEEK_SECS),
-           ({'end_wn': 1, 'end_tow': 1, 'start_wn': 0, 'start_tow': 0}, c.WEEK_SECS + 1),
-           # Make sure negative differences are handled.
-           ({'end_wn': 0, 'end_tow': 0, 'start_wn': 0, 'start_tow': 1}, -1),
-           ]
-
-  for params, expected in tests:
-    assert expected == ephemeris.gpsdifftime(**params)
+  tdiffs = time_utils.seconds_from_timedelta(tot.values - actual_tot.values)
+  assert np.all(np.abs(tdiffs) < 1e-12)
 
 
 def test_sat_velocity(ephemerides):
   # computes a set of satellite states, then uses the state
   # velocity to predict the state at a nearby time and compares
   # it to the actual sat state at that time.
-  ref_time = ephemerides.iloc[0][['wn', 'tow']].copy()
-  ref_time['tow'] += 40
+  ref_time = ephemerides.iloc[0]['time']
+  ref_time += time_utils.timedelta_from_seconds(40)
 
   sat_state = ephemeris.calc_sat_state(ephemerides, ref_time)
   vel = sat_state[['sat_v_x', 'sat_v_y', 'sat_v_z']].values
   pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
 
   dt = 1e-6
-  new_time = ref_time.copy()
-  new_time['tow'] += dt
+  new_time = ref_time + time_utils.timedelta_from_seconds(dt)
   new_sat_state = ephemeris.calc_sat_state(ephemerides, new_time)
 
   expected = new_sat_state[['sat_x', 'sat_y', 'sat_z']].values

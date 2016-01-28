@@ -1,6 +1,5 @@
 
 import copy
-import pytest
 import numpy as np
 
 from gnss_analysis import simulate
@@ -23,7 +22,10 @@ def test_simulate_from_log(jsonlog):
       # fill with nans
       state[k].ix[:] = np.nan
       # make sure modifying the current state won't
-      # alter the previous state
-      np.testing.assert_array_equal(prev_state[k].values,
-                                    prev_v_copy.values)
+      # alter the previous state.  We have to compare
+      # by iterating over each column since each column
+      # may be a different data type.
+      for (_, x), (_, y) in zip(prev_state[k].iteritems(),
+                                prev_v_copy.iteritems()):
+        np.testing.assert_array_equal(x.values, y.values)
     prev_state = state_copy

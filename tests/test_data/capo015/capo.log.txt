@@ -1,0 +1,373 @@
+     CAPO Site Information Form
+     SMRTNT Continuously Operating Reference Station
+     See Instructions at:
+       ftp://igscb.jpl.nasa.gov/pub/station/general/sitelog_instr.txt
+
+
+0.   Form
+
+     Prepared by (full name)  : cors-adm
+     Date Prepared            : 2015-04-01
+     Report Type              : UPDATE
+     If Update:
+      Previous Site Log       : capo_20150324.log
+      Modified/Added Sections :  2 6
+
+
+1.   Site Identification of the GNSS Monument
+     Site Name                : Oakland
+     Four Character ID        : CAPO
+     Monument Inscription     :
+     IERS DOMES Number        : (A9)
+     CDP Number               : (A4)
+     Monument Description     : ALUMINUM MAST - 3 INCH
+       Height of the Monument : 8.9 m
+       Monument Foundation    : CONCRETE
+       Foundation Depth       : 0.75 m
+     Marker Description       : (CHISELLED CROSS/DIVOT/BRASS NAIL/etc)
+     Date Installed           : 2011-03-01T00:00Z
+     Geologic Characteristic  : (BEDROCK/CLAY/CONGLOMERATE/GRAVEL/SAND/etc)
+       Bedrock Type           : (IGNEOUS/METAMORPHIC/SEDIMENTARY)
+       Bedrock Condition      : (FRESH/JOINTED/WEATHERED)
+       Fracture Spacing       : (1-10 cm/11-50 cm/51-200 cm/over 200 cm)
+       Fault zones nearby     : (YES/NO/Name of the zone)
+         Distance/activity    : (multiple lines)
+     Additional Information   : The antenna is affixed to a 3" fabricated
+                              : aluminum mast via a 5/8 stainless steel leveling
+                              : monument adapter and 5/8" SS bolt.  The SS bolt
+                              : is threaded into a machined 3" solid aluminum
+                              : plug that is welded into the mast.  The mast is
+                              : fastened to a masonry building via a set of 2 in
+                              : slotted strut channel, SS bolts and 3" pipe
+                              : clamps.  The upper and lower strut channel are
+                              : mounted horizontally and are affixed to the
+                              : masonry building using SS bolts and 3/4" drop-in
+                              : hollow set wall anchors.  (2) 3" SS pipe clamp
+                              : straps are used to secure the mast to the upper
+                              : and lower strut channel.  A vertical section of
+                              : strut channel is located directly behind the
+                              : mast to act as a spacer for the (3) additional
+                              : SS bolts that pass thru the mast assembly and
+                              : into (3) additional anchors.  The vertical
+                              : section of strut channel secured to the upper
+                              : and lower sections via (4) tee welds.
+
+
+2.   Site Location Information
+
+     City or Town             : Oakland
+     State or Province        : California
+     Country                  : United States
+     Tectonic Plate           : North American
+     Approximate Position (ITRF)
+       X coordinate (m)       : -2693675.439
+       Y coordinate (m)       : -4273830.299
+       Z coordinate (m)       : 3880383.140
+       Latitude (N is +)      : +374251.03
+       Longitude (E is +)     : -1221319.49
+       Elevation (m,ellips.)  : -20.9
+     Additional Information   : ARP IGS08 POSITION (EPOCH 2005.00)
+                              : Computed in Apr 2014 using 25 days of data.
+
+
+3.   GNSS Receiver Information
+
+3.1  Receiver Type            : LEICA GRX1200GGPRO
+     Satellite System         : GPS+GLO
+     Serial Number            : 353424
+     Firmware Version         : 8.50/3.019
+     Elevation Cutoff Setting : 0 deg
+     Date Installed           : 2011-03-01
+     Date Removed             : 2012-07-25
+     Temperature Stabiliz.    : (none or tolerance in degrees C)
+     Additional Information   : Firmware Upgrade
+
+3.2  Receiver Type            : LEICA GRX1200GGPRO
+     Satellite System         : GPS+GLO
+     Serial Number            : 353424
+     Firmware Version         : 8.50/3.019
+     Elevation Cutoff Setting : 0 deg
+     Date Installed           : 2012-07-25
+     Date Removed             : 2012-12-15T06:30Z
+     Temperature Stabiliz.    : (none or tolerance in degrees C)
+     Additional Information   : corrected rem date from 2013dec15
+
+3.3  Receiver Type            : LEICA GRX1200GGPRO
+     Satellite System         : GPS+GLO
+     Serial Number            : 353424
+     Firmware Version         : 8.71.2534/3.822
+     Elevation Cutoff Setting : 0 deg
+     Date Installed           : 2012-12-15T06:30Z
+     Date Removed             : (CCYY-MM-DDThh:mmZ)
+     Temperature Stabiliz.    : (none or tolerance in degrees C)
+     Additional Information   : (multiple lines)
+
+3.x  Receiver Type            : (A20, from rcvr_ant.tab; see instructions)
+     Satellite System         : (GPS+GLO+GAL+BDS+QZSS+SBAS)
+     Serial Number            : (A20, but note the first A5 is used in SINEX)
+     Firmware Version         : (A11)
+     Elevation Cutoff Setting : (deg)
+     Date Installed           : (CCYY-MM-DDThh:mmZ)
+     Date Removed             : (CCYY-MM-DDThh:mmZ)
+     Temperature Stabiliz.    : (none or tolerance in degrees C)
+     Additional Information   : (multiple lines)
+
+
+4.   GNSS Antenna Information
+
+4.1  Antenna Type             : LEIAT504GG      LEIS
+     Serial Number            : 200005
+     Antenna Reference Point  : BAM
+     Marker->ARP Up Ecc. (m)  : 0.0000
+     Marker->ARP North Ecc(m) : 0.0000
+     Marker->ARP East Ecc(m)  : 0.0000
+     Alignment from True N    : 0 deg
+     Antenna Radome Type      : LEIS
+     Radome Serial Number     :
+     Antenna Cable Type       : Times Microwave LMR400
+     Antenna Cable Length     : 31 m
+     Date Installed           : 2011-03-01
+     Date Removed             : (CCYY-MM-DDThh:mmZ)
+     Additional Information   : (multiple lines)
+
+4.x  Antenna Type             : (A20, from rcvr_ant.tab; see instructions)
+     Serial Number            : (A*, but note the first A5 is used in SINEX)
+     Antenna Reference Point  : (BPA/BCR/XXX from "antenna.gra"; see instr.)
+     Marker->ARP Up Ecc. (m)  : (F8.4)
+     Marker->ARP North Ecc(m) : (F8.4)
+     Marker->ARP East Ecc(m)  : (F8.4)
+     Alignment from True N    : (deg; + is clockwise/east)
+     Antenna Radome Type      : (A4 from rcvr_ant.tab; see instructions)
+     Radome Serial Number     :
+     Antenna Cable Type       : (vendor & type number)
+     Antenna Cable Length     : (m)
+     Date Installed           : (CCYY-MM-DDThh:mmZ)
+     Date Removed             : (CCYY-MM-DDThh:mmZ)
+     Additional Information   : (multiple lines)
+
+
+5.   Surveyed Local Ties
+
+5.x  Tied Marker Name         :
+     Tied Marker Usage        : (SLR/VLBI/LOCAL CONTROL/FOOTPRINT/etc)
+     Tied Marker CDP Number   : (A4)
+     Tied Marker DOMES Number : (A9)
+     Differential Components from GNSS Marker to the tied monument (ITRS)
+       dx (m)                 : (m)
+       dy (m)                 : (m)
+       dz (m)                 : (m)
+     Accuracy (mm)            : (mm)
+     Survey method            : (GPS CAMPAIGN/TRILATERATION/TRIANGULATION/etc)
+     Date Measured            : (CCYY-MM-DDThh:mmZ)
+     Additional Information   : (multiple lines)
+
+
+6.   Frequency Standard
+
+6.1  Standard Type            : INTERNAL
+       Input Frequency        : (if external)
+       Effective Dates        : 2011-03-01/CCYY-MM-DD
+       Notes                  : (multiple lines)
+
+6.x  Standard Type            : (INTERNAL or EXTERNAL H-MASER/CESIUM/etc)
+       Input Frequency        : (if external)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+
+7.   Collocation Information
+
+7.1  Instrumentation Type     : (GPS/GLONASS/DORIS/PRARE/SLR/VLBI/TIME/etc)
+       Status                 : (PERMANENT/MOBILE)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+7.x  Instrumentation Type     : (GPS/GLONASS/DORIS/PRARE/SLR/VLBI/TIME/etc)
+       Status                 : (PERMANENT/MOBILE)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+
+8.   Meteorological Instrumentation
+
+8.1.1 Humidity Sensor Model   :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy (% rel h)     : (% rel h)
+       Aspiration             : (UNASPIRATED/NATURAL/FAN/etc)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.1.x Humidity Sensor Model   :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy (% rel h)     : (% rel h)
+       Aspiration             : (UNASPIRATED/NATURAL/FAN/etc)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.2.1 Pressure Sensor Model   :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy               : (hPa)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.2.x Pressure Sensor Model   :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy               : (hPa)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.3.1 Temp. Sensor Model      :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy               : (deg C)
+       Aspiration             : (UNASPIRATED/NATURAL/FAN/etc)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.3.x Temp. Sensor Model      :
+       Manufacturer           :
+       Serial Number          :
+       Data Sampling Interval : (sec)
+       Accuracy               : (deg C)
+       Aspiration             : (UNASPIRATED/NATURAL/FAN/etc)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.4.1 Water Vapor Radiometer  :
+       Manufacturer           :
+       Serial Number          :
+       Distance to Antenna    : (m)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.4.x Water Vapor Radiometer  :
+       Manufacturer           :
+       Serial Number          :
+       Distance to Antenna    : (m)
+       Height Diff to Ant     : (m)
+       Calibration date       : (CCYY-MM-DD)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Notes                  : (multiple lines)
+
+8.5.1 Other Instrumentation   : (multiple lines)
+
+8.5.x Other Instrumentation   : (multiple lines)
+
+
+9.   Local Ongoing Conditions Possibly Affecting Computed Position
+
+9.1.1 Radio Interference      : (TV/CELL PHONE ANTENNA/RADAR/etc)
+       Observed Degradations  : (SN RATIO/DATA GAPS/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+9.1.x Radio Interference      : (TV/CELL PHONE ANTENNA/RADAR/etc)
+       Observed Degradations  : (SN RATIO/DATA GAPS/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+9.2.1 Multipath Sources       : (METAL ROOF/DOME/VLBI ANTENNA/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+9.2.x Multipath Sources       : (METAL ROOF/DOME/VLBI ANTENNA/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+9.3.1 Signal Obstructions     : (TREES/BUILDLINGS/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+9.3.x Signal Obstructions     : (TREES/BUILDLINGS/etc)
+       Effective Dates        : (CCYY-MM-DD/CCYY-MM-DD)
+       Additional Information : (multiple lines)
+
+10.  Local Episodic Effects Possibly Affecting Data Quality
+
+10.1 Date                     : (CCYY-MM-DD/CCYY-MM-DD)
+     Event                    : (TREE CLEARING/CONSTRUCTION/etc)
+
+10.x Date                     : (CCYY-MM-DD/CCYY-MM-DD)
+     Event                    : (TREE CLEARING/CONSTRUCTION/etc)
+
+
+11.  On-Site, Point of Contact Agency Information
+
+     Agency                   : SmartNet North America
+     Preferred Abbreviation   : SMRTNT
+     Mailing Address          : 5051 Peachtree Corners Circle
+                              : Suite 250
+                              : Norcross, Georgia 30092
+     Primary Contact
+       Contact Name           : SmartNet NA
+       Telephone (primary)    : 770-326-9500 x 1430
+       Telephone (secondary)  :
+       Fax                    :
+       E-mail                 : support@smartnetna.com
+     Secondary Contact
+       Contact Name           :
+       Telephone (primary)    :
+       Telephone (secondary)  :
+       Fax                    :
+       E-mail                 :
+     Additional Information   : (multiple lines)
+
+
+12.  Responsible Agency (if different from 11.)
+
+     Agency                   : (multiple lines)
+     Preferred Abbreviation   : (A10)
+     Mailing Address          : (multiple lines)
+     Primary Contact
+       Contact Name           :
+       Telephone (primary)    :
+       Telephone (secondary)  :
+       Fax                    :
+       E-mail                 :
+     Secondary Contact
+       Contact Name           :
+       Telephone (primary)    :
+       Telephone (secondary)  :
+       Fax                    :
+       E-mail                 :
+     Additional Information   : (multiple lines)
+
+
+13.  More Information
+
+     Primary Data Center      : ftp://geodesy.noaa.gov/cors
+     Secondary Data Center    : ftp://alt.ngs.noaa.gov/cors
+     URL for More Information : http://geodesy.noaa.gov/CORS
+     Hardcopy on File
+       Site Map               : (Y or URL)
+       Site Diagram           : (Y or URL)
+       Horizon Mask           : (Y or URL)
+       Monument Description   : (Y or URL)
+       Site Pictures          : (Y or URL)
+     Additional Information   : (multiple lines)
+     Antenna Graphics with Dimensions
+
+     ftp://igscb.jpl.nasa.gov/pub/station/general/antenna.gra
