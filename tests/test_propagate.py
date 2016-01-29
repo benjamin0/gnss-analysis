@@ -27,7 +27,7 @@ def test_delta_tof_for_known_position(ephemerides):
   # propagate forward in time for i number of seconds and compare to
   # expected observations.
   for i in np.linspace(0, 10, 11):
-    second_toa = first_toa + np.timedelta64(np.int32(i), 's')
+    second_toa = first_toa + np.timedelta64(int(i), 's')
     expected = synthetic.observations_from_toa(ephemerides, location_ecef,
                                                second_toa)
     to_drop = [x for x in expected.columns if x.startswith('ref_')]
