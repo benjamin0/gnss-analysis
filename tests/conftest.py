@@ -83,7 +83,7 @@ def synthetic_state(ephemerides):
   rover_ecef = locations.NOVATEL_ABSOLUTE
   base_ecef = locations.LEICA_ABSOLUTE
 
-  tot = ephemerides['time'] + np.timedelta64(np.int32(100), 's')
+  tot = ephemerides['time'] + np.timedelta64(100, 's')
 
   return synthetic.synthetic_state(ephemerides,
                                    rover_ecef, base_ecef,
@@ -102,7 +102,7 @@ def synthetic_stationary_state_sequence(ephemerides):
     base_ecef = locations.LEICA_ABSOLUTE
 
     for dt in time_steps:
-      toa = ephemerides['time'] + np.timedelta64(np.int32(100 + dt), 's')
+      toa = ephemerides['time'] + np.timedelta64(100 + dt, 's')
       state = synthetic.synthetic_state(ephemerides, rover_ecef,
                                         base_ecef, toa)
       state['base'] = ephemeris.add_satellite_state(state['base'],

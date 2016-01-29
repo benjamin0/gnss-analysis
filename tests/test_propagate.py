@@ -76,21 +76,15 @@ def test_matches_make_propagated_sdiffs(ephemerides):
     return nm
 
   toa = ephemerides['time'].values[0]
-  toa += np.timedelta64(np.int32(100), 's')
+  toa += np.timedelta64(100, 's')
   rover_obs = synthetic.observations_from_toa(ephemerides,
                                              locations.NOVATEL_ABSOLUTE,
                                              toa)
-  rover_obs = ephemeris.add_satellite_state(rover_obs,
-                                            ephemerides,
-                                            account_for_sat_error=True)
 
-  base_toa = toa - np.timedelta64(-np.int32(1), 's')
+  base_toa = toa - np.timedelta64(1, 's')
   base_obs = synthetic.observations_from_toa(ephemerides,
                                              locations.LEICA_ABSOLUTE,
                                              base_toa)
-  base_obs = ephemeris.add_satellite_state(base_obs,
-                                           ephemerides,
-                                           account_for_sat_error=True)
 
   rover_nm = [make_nav_meas(x) for _, x in rover_obs.iterrows()]
   base_nm = [make_nav_meas(x) for _, x in base_obs.iterrows()]
@@ -102,21 +96,18 @@ def test_matches_make_propagated_sdiffs(ephemerides):
   t = gpstime.GpsTime(**time_utils.datetime_to_tow(toa))
   es = [observations.mk_ephemeris(x)
         for _, x in ephemerides.reset_index().iterrows()]
-  sdiffs_t = observation.make_propagated_sdiffs_(rover_nm, base_nm,
-                                                 remote_dists, base_pos,
-                                                 es, t)
 
-  sdiffs = dgnss.make_propagated_single_differences(rover_obs, base_obs,
-                                                    locations.LEICA_ABSOLUTE)
+  # These libswiftnav_sdiffs are very different from the sdiffs computed in python
 
-  libswiftnav_sdiffs = pd.DataFrame(x.to_dict() for x in sdiffs_t)
-  libswiftnav_sdiffs['sid'] = [x['sat'] for x in libswiftnav_sdiffs['sid']]
-  libswiftnav_sdiffs.set_index('sid', inplace=True)
-  comp_vars = ['carrier_phase', 'pseudorange']
-  import ipdb; ipdb.set_trace()
-  libswiftnav_sdiffs[comp_vars] == sdiffs[comp_vars]
-#   libswiftnav_sdiffs['sid'] = libswiftnav_sdiffs[]
+  # TODO: The following requires a non-master build of libswiftnav
+#   sdiffs_t = observation.make_propagated_sdiffs_(rover_nm, base_nm,
+#                                                  remote_dists, base_pos,
+#                                                  es, t)
+#
+#   sdiffs = dgnss.make_propagated_single_differences(rover_obs, base_obs,
+#                                                     locations.LEICA_ABSOLUTE)
+#
+#   libswiftnav_sdiffs = pd.DataFrame(x.to_dict() for x in sdiffs_t)
+#   libswiftnav_sdiffs['sid'] = [x['sat'] for x in libswiftnav_sdiffs['sid']]
+#   libswiftnav_sdiffs.set_index('sid', inplace=True)
 
-  for sd_t, sd in zip(sdiffs_t, sdiffs):
-
-    pass

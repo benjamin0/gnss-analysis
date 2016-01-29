@@ -13,7 +13,7 @@ except ImportError:
   print 'Please install or upgrade setuptools or pip to continue.'
   sys.exit(1)
 
-  
+
 INSTALL_REQUIRES = ['cython',
                     # These specific versions are required for
                     # a python environment that cooperates with
@@ -25,7 +25,6 @@ INSTALL_REQUIRES = ['cython',
                     'tables',
                     'matplotlib',
                     'sbp',
-                    'tables',
                     'scikits.statsmodels',
                     # this will have to be installed by either
                     # running `pip install -r requirements.txt`,
@@ -34,9 +33,9 @@ INSTALL_REQUIRES = ['cython',
                     # libswiftnav.
                     'swiftnav',
                     ]
-TEST_REQUIRES = ['pytest', 'mock']                  
-                  
-  
+TEST_REQUIRES = ['pytest', 'mock']
+
+
 setup(name='gnss_analysis',
       description='Analysis and Testing of libswiftnav RTK filters',
       version='0.24',
