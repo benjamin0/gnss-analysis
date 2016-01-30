@@ -146,19 +146,29 @@ def parse_types_of_observ(x):
   |                    |   If more than 9 observation types:      |            |
   |                    |     Use continuation line(s) (including  |6X,9(4X,2A1)|
   """
+  lines = iter(x.splitlines())
   fmt_str = '6s ' + ' '.join(9 * ['4x 1s 1s'])
-  divs = build_parser(fmt_str)(x)
-  cnt = int(divs[0])
-  if cnt > 9:
-    raise NotImplementedError("RINEX supports more than 9 observation types"
-                              " but this parser doesn't (yet)")
+  obs_types = build_parser(fmt_str)(lines.next())
+  cnt, obs_types = int(obs_types[0]), obs_types[1:]
+
+  def parse_continuation_line(l):
+    # This parses any possible continuation lines and returns
+    # only non-empty values.
+    fmt_str = '6x ' + ' '.join(9 * ['4x 1s 1s'])
+    return filter(lambda z: z != ' ', build_parser(fmt_str)(l))
+
+  # extra_divs will be a list of parsed continuation lines
+  extra_divs = [parse_continuation_line(line) for line in lines]
+  # now we chain together all the types.
+  obs_types = itertools.chain(obs_types, *extra_divs)
+
   renames = {'C': 'raw_pseudorange',
              'P': 'p_code',
              'L': 'carrier_phase',
              'S': 'signal_noise_ratio'}
   # split the observation codes and frequency codes into pairs then take
   # only the first count pairs.
-  pairs = split_every(2, divs[1:])
+  pairs = split_every(2, obs_types)
   # These pairs will be tuples of (observation_code, frequency_code)
   pairs = itertools.islice(pairs, 0, cnt)
   pairs = [(renames[x], freq) for x, freq in pairs]
@@ -182,6 +192,18 @@ def parse_almanac(x):
                      ('a1', '19s', float_or_nan),
                      ('t', '9s', int),
                      ('w', '9s', int)],
+                    x)
+
+
+def parse_approx_pos(x):
+  """
+  +--------------------+------------------------------------------+------------+
+  |APPROX POSITION XYZ | Approximate marker position (WGS84)      |   3F14.4   |
+  +--------------------+------------------------------------------+------------+
+  """
+  return parse_line([('x', '14s', float_or_nan),
+                     ('y', '14s', float_or_nan),
+                     ('z', '14s', float_or_nan)],
                     x)
 
 
@@ -212,26 +234,43 @@ def parse_header(f):
               '# / TYPES OF OBSERV': parse_types_of_observ,
               'DELTA-UTC: A0,A1,T,W': parse_almanac,
               'RCV CLOCK OFFS APPL': parse_offset_applied,
+              'APPROX POSITION XYZ': parse_approx_pos,
               }
-  # Here we set default values
-  header['receiver_offset_applied'] = False
-  # iterate over each of the lines
-  for line in f:
-    # the last line of the header will end with "END OF HEADER"
-    if "END OF HEADER" in line:
-      break
-    # splits apart the line type and line content
-    content, line_type = content_parser(line)
-    # remove stray characters around the line type
-    line_type = line_type.strip()
+
+  def iter_type_and_content():
+    for line in f:
+      # the last line of the header will end with "END OF HEADER"
+      if "END OF HEADER" in line:
+        break
+      # splits apart the line type and line content
+      content, line_type = content_parser(line)
+      # remove stray characters around the line type
+      line_type = line_type.strip()
+      yield line_type, content
+
+  def apply_handler(line_type, content):
     # if we can process this line we pass it to the appropriate handler
     if line_type in handlers:
+      # in the case of multiple lines it'll be up to the handler
+      # to split on new lines.
+      content = '\n'.join([y for _, y in content])
       # handlers can either return a dictionary of key/values to update
       new_attributes = handlers[line_type](content)
       # the new_attributes might be none (with comments for example)
-      if new_attributes is not None:
-        # if they aren't None we update the header
-        header.update(new_attributes)
+      return new_attributes
+
+  # Here we set default values
+  header['receiver_offset_applied'] = False
+  # iterate over each of the header content types, each line
+  # type may have multiple lines of content
+  types_and_content = itertools.groupby(iter_type_and_content(),
+                                        key=lambda x: x[0])
+  # parse each header group and get a list of dictionaries
+  # that each hold new header attributes.  Some of these will be None
+  new_attributes = (apply_handler(*x) for x in types_and_content)
+  # update the header with the new attributes, filtering out
+  # any None objects
+  map(header.update, filter(None, new_attributes))
   return header
 
 
@@ -291,7 +330,26 @@ def convert_to_datetime(dictlike):
   return time
 
 
-def parse_epoch(epoch_line):
+def next_non_comment(lines):
+  """
+  Sometimes RINEX comments are intermixed in the file.  This
+  iterates over lines logging any comment lines and the
+  returning the next non comment line.
+  """
+  for i, line in enumerate(lines):
+    # Comment lines follow the header style and end in 'COMMENT
+    if line.strip().endswith('COMMENT'):
+      if i == 0:
+        # If we are skip any lines we explain that to the user
+        logging.info("Skipping the following comment lines:")
+      # Then log all the skipped lines.
+      logging.info(line.strip())
+    else:
+      break
+  return line
+
+
+def parse_epoch(lines):
   """
  +-------------+-------------------------------------------------+------------+
  | EPOCH/SAT   | - Epoch :                                       |            |
@@ -316,12 +374,33 @@ def parse_epoch(epoch_line):
             ('n_sats', '3s', int),
             ('prns', '36s', lambda x: x),
             ('receiver_clock_offset', '12s', float_or_nan)]
-  epoch = parse_line(fields, epoch_line)
-  # the prns line
+  try:
+    epoch = parse_line(fields, lines.next())
+  except:
+    # sometimes RINEX files are spliced together and sometimes there
+    # is an unidentified line right before the splice.  Here if we
+    # can't parse the epoch line, we try and see if the next line
+    # indicates a splice.  If so, we skip over commented lines,
+    # otherwise we re-raise the previous error.
+    possible_splice_indicator = lines.next()
+    if possible_splice_indicator.startswith("RINEX FILE SPLICE"):
+      # following the RINEX FILE SPLCE line are typically a bunch
+      # of comments (that we'd like to skip) then we give parse_epoch
+      # one last chance before hard fail.
+      return parse_epoch(iter([next_non_comment(lines)]))
+
+  # Sometimes header information is intermixed in the observation file.
+  # When it is it's given an epoch flag of 4.
+  if epoch['epoch_flag'] == 4:
+    # We skip over any comments then retry parse_epoch.
+    # Note that we only let it try with the latest line.  If there are
+    # two epoch flags in a row this will fail.
+    return parse_epoch(iter([next_non_comment(lines)]))
+  elif not epoch['epoch_flag'] == 0:
+    ValueError("Encountered an unsupported epoch flag.")
+
   if epoch['n_sats'] > 12:
-    raise NotImplementedError("RINEX supports more than 12 satellites"
-                              " but this parser doesn't not.")
-  assert epoch['epoch_flag'] == 0
+    epoch['prns'] += ''.join(lines.next().strip())
   # we don't know the number of satellites until we parse the line, so we first
   # parse the line, then convert the prn field into a list of satellite prns
   prns = epoch['prns'].strip()
@@ -329,6 +408,8 @@ def parse_epoch(epoch_line):
   # them apart.
   epoch['prns'] = [''.join(x) for x in split_every(3, prns)]
   # make sure the number of prns found matches that reported.
+  # RINEX isn't explicit about the format for continuation prn lines
+  # so it's very possible we'll run into this assertion in the future.
   assert len(epoch['prns']) == epoch['n_sats']
   # this converts the year, month, day, hour, min, sec into a 'time' attribute
   epoch['time'] = convert_to_datetime(epoch)
@@ -365,9 +446,12 @@ def build_observation_parser(header):
     value_entries = [(freq, obs_type, val)
                      for (obs_type, freq), val
                      in zip(header['observation_types'], values)]
-    lock_entries = [(freq, '%s_LLI' % obs_type, val)
+    # Note that we only keep the LLI values from carrier phase.
+    # Does a loss of lock even matter for code/pseudorange?
+    lock_entries = [(freq, 'lock', val)
                      for (obs_type, freq), val
-                     in zip(header['observation_types'], locks)]
+                     in zip(header['observation_types'], locks)
+                     if obs_type == 'carrier_phase']
     strength_entries = [(freq, '%s_SN' % obs_type, val)
                         for (obs_type, freq), val
                         in zip(header['observation_types'], locks)]
@@ -471,11 +555,11 @@ def build_navigation_parser(header):
     # we assume below when prepending G to the prn
     assert header['file_type'] == 'N'
     # since we aren't using the delta_utc corrections yet, we make sure they
-    # are so small that they don't matter (up to nanosecond precision) even
+    # are so small that they don't matter (up to microsecond precision) even
     # if the epherides are more than a day old:
-    #   (1e-9 / (24 * 60 * 60) = 1.1574074074074075e-14
-    assert header.get('a0', 0.) <= 1e-9
-    assert header.get('a1', 0.) <= 1e-14
+    #   (1e-6 / (24 * 60 * 60) = 1.1574074074074075e-14
+    assert header.get('a0', 0.) <= 1e-6
+    assert header.get('a1', 0.) <= 1e-11
     return nav_message
 
   return navigation_parser
@@ -487,8 +571,7 @@ def parse_observation_set(lines, observation_parser):
   next set of observations.
   """
   # the first line in a observation set is the epoch
-  epoch = parse_epoch(lines.next())
-
+  epoch = parse_epoch(lines)
   # then the next lines correspond to actual observations.
   def add_sid(x, prn):
     x['sid'] = prn
@@ -499,6 +582,7 @@ def parse_observation_set(lines, observation_parser):
   df = pd.concat(dfs)
   # add a time column
   df.ix[:, 'time'] = epoch['time']
+  df.ix[:, 'raw_doppler'] = np.nan
   # switch to using 'sid' as the index
   df.reset_index(inplace=True)
   df.set_index('sid', inplace=True)
@@ -529,8 +613,12 @@ def iter_observations(filelike):
   observation_parser = build_observation_parser(header)
 
   prev_obs = parse_observation_set(lines, observation_parser)
+  # NOTE: this first observation will have nans for raw_doppler
+  yield prev_obs
   while True:
     obs = parse_observation_set(lines, observation_parser)
+    if not np.all(prev_obs.index == obs.index):
+      obs, prev_obs = obs.align(prev_obs, 'left')
     obs['raw_doppler'] = sbp_utils.tdcp_doppler(prev_obs, obs)
     yield obs
 
@@ -593,6 +681,7 @@ def iter_padded_lines(file_or_path, pad=80):
     lines = iter(open(file_or_path, 'r'))
   else:
     lines = iter(file_or_path)
+
   return (('{: <%d}' % pad).format(l) for l in lines)
 
 
@@ -624,9 +713,9 @@ def simulate_from_rinex(rover, navigation, base=None):
     # We assume that the ephemeris state should never be
     # newer than the rover observation.
     assert state['ephemeris']['toc'][0] <= obs['time'][0]
-    # If the next navigation message comes before or after
+    # If the next navigation message comes before
     # the current rover observation we update the state
-    if next_nav['toc'][0] <= obs['time'][0]:
+    while np.any(next_nav['toc'] <= obs['time'][0]):
       state['ephemeris'].update(next_nav)
       next_nav = iter_nav.next()
     # If we are using a base station we search for the

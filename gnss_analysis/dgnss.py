@@ -37,7 +37,7 @@ def make_propagated_single_differences(rover, base, base_pos_ecef):
   #   precision when generating synthetic observations adds too much
   #   error to be able to discern if this is true or not.
   prop_base = propagate.delta_tof_propagate(base_pos_ecef, base,
-                                            new_toa=rover['time'].values)
+                                            new_tot=rover['tot'].values)
   return single_difference(rover, prop_base)
 
 
@@ -58,11 +58,12 @@ def single_difference(rover, base):
   # actually perform the difference
   sdiffs = base[diff_vars] - rover[diff_vars]
   # handle the signal to noise ratio
-  if 'cn0' in rover:
-    sdiffs['cn0'] = np.minimum(rover.cn0, base.cn0)
+  if 'signal_noise_ratio' in rover:
+    sdiffs['signal_noise_ratio'] = np.minimum(rover.signal_noise_ratio,
+                                              base.signal_noise_ratio)
   # keep track of both the locks simultaneously
   if 'lock' in rover:
-    sdiffs['lock'] = rover['lock'] + base['lock']
+    sdiffs['lock'] = (rover['lock'] + base['lock'])
   # return a copy of rover, but with single differnces instead of obs.
   out = rover.copy()
   out.update(sdiffs)
@@ -101,12 +102,14 @@ def create_single_difference_objects(sdiffs):
   """
   assert sdiffs.index.name == 'sid'
   for sid, sdiff in sdiffs.iterrows():
+    if isinstance(sid, basestring) and sid.startswith('G'):
+      sid = int(sid[1:])
     yield SingleDiff(pseudorange=sdiff.pseudorange,
                      carrier_phase=sdiff.carrier_phase,
                      doppler=sdiff.doppler,
                      sat_pos=sdiff[['sat_x', 'sat_y', 'sat_z']].values,
                      sat_vel=sdiff[['sat_v_x', 'sat_v_y', 'sat_v_z']].values,
-                     snr=sdiff.cn0,
+                     snr=sdiff.signal_noise_ratio,
                      lock_counter=sdiff.lock,
                      sid={'sat':sid, 'band':0, 'constellation': 0})
 

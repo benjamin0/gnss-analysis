@@ -1,4 +1,4 @@
-
+import os
 import pytest
 import string
 import datetime
@@ -6,17 +6,6 @@ import numpy as np
 import pandas as pd
 
 from gnss_analysis.io import rinex
-
-@pytest.fixture
-def rinex_observation(datadir):
-  basename = 'tibb015/tibb0150.16o'
-  return datadir.join(basename).strpath
-
-
-@pytest.fixture
-def rinex_navigation(datadir):
-  basename = 'tibb015/tibb0150.16n'
-  return datadir.join(basename).strpath
 
 
 def test_parse_line():
@@ -113,21 +102,47 @@ def test_simulate(rinex_observation, rinex_navigation):
 
 
 def test_navigation(rinex_navigation):
+  # this will only work on a specific RINEX file.  Make sure we're using it
+  assert os.path.basename(rinex_navigation) == 'seat0320.16n'
   f = open(rinex_navigation, 'r')
   # So far this test just iterates through to a specific known navigation
   # parameters and makes sure that value is parsed correctly.
   for i, nav in enumerate(rinex.iter_navigations(f)):
-    if nav.ix['G02', 'toe'] == pd.Timestamp('2016-01-14 22:00:00'):
-      assert nav.ix['G02', 'af0'] == 5.991579964757e-04
+    if nav.ix['G02', 'toe'] == datetime.datetime(2016, 1, 31, 22, 0, 0):
+      assert nav.ix['G02', 'af0'] == 5.994844250381e-04
       break
+    # This test should pass after four iterations, if not we fail
+    if i > 10:
+      assert False
 
 
 def test_observation(rinex_observation):
+  # this will only work on a specific RINEX file.  Make sure we're using it
+  assert os.path.basename(rinex_observation) == 'seat0320.16o'
   f = open(rinex_observation, 'r')
   # So far this test just iterates through to a specific known observation
   # and makes sure that value is parsed correctly.
   for i, obs in enumerate(rinex.iter_observations(f)):
-    if np.any(obs['time'] == datetime.datetime(2016, 1, 15, 0, 0, 18)):
-      np.testing.assert_array_equal(obs.ix['G32', 'carrier_phase'],
-                                    np.array(125133856.682))
+    if np.any(obs['time'] == datetime.datetime(2016, 2, 1, 12, 0, 4)):
+      np.testing.assert_array_equal(obs.ix['G02', 'carrier_phase'],
+                                    np.array(126636838.718))
       break
+    # This test should pass after four iterations, if not we fail
+    if i > 10:
+      assert False
+
+
+@pytest.fixture
+def rinex_with_intermixed_header(datadir):
+  basename = 'rinex_observation_with_intermixed_header.16o'
+  return datadir.join(basename).strpath
+
+
+def test_parse_with_intermixed_header(rinex_with_intermixed_header):
+  # Some RINEX files occasionally throw in header information after
+  # epoch lines.  This makes sure we can handle an example file that
+  # does that.  We just make sure it makes it through the file and
+  # catches the first and last observation.
+  obs = list(rinex.iter_observations(rinex_with_intermixed_header))
+  assert np.all(obs[0]['time'] == datetime.datetime(2016, 1, 1, 0, 59, 59))
+  assert np.all(obs[-1]['time'] == datetime.datetime(2016, 1, 1, 1, 0, 0))

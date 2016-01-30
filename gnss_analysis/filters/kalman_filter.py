@@ -150,20 +150,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
 
-    # keep track of the current time of the filter
-    self.cur_time = common.get_unique_value(rover_obs['time'])
-
-    # Here we make sure that we don't lose any satellites
-    common_sids = rover_obs.index.intersection(base_obs.index)
-    if not np.all(common_sids == self.sids):
-      if self.sids.difference(common_sids).size > 0:
-        raise NotImplementedError("Not capable of handling dropped"
-                                  " satellites yet")
-      else:
-        logging.warn("Added a satellite but it is being ignored.")
-    # Subset the observations to the common sids
-    base_obs = base_obs.ix[common_sids]
-    rover_obs = rover_obs.ix[common_sids]
+    logging.warn("Ignoring any rising/setting satellites")
+    base_obs = base_obs.ix[self.sids]
+    rover_obs = rover_obs.ix[self.sids]
 
     n = self.x.size
     # the observation vector, linear operator and observation noise

@@ -70,10 +70,8 @@ def synthetic_observations(ephemerides):
 
   # Pick a common (arbitrary) time of transmission.
   tot = ephemerides['toe'].values[0] + np.timedelta64(40, 's')
-
-  return synthetic.observations_from_tot(ephemerides, ref_loc, tot,
-                                         rover_clock_error=0.,
-                                         include_sat_error=True)
+  return synthetic.observation(ephemerides, ref_loc, tot,
+                               rover_clock_error=0.)
 
 
 @pytest.fixture()
@@ -106,11 +104,27 @@ def synthetic_stationary_states(ephemerides):
       state = synthetic.synthetic_state(ephemerides, rover_ecef,
                                         base_ecef, toa)
       state['base'] = ephemeris.add_satellite_state(state['base'],
-                                                    state['ephemeris'],
-                                                    account_for_sat_error=False)
+                                                    state['ephemeris'])
       state['rover'] = ephemeris.add_satellite_state(state['rover'],
-                                                     state['ephemeris'],
-                                                     account_for_sat_error=False)
+                                                     state['ephemeris'])
       yield state.copy()
 
   return iter_states(np.linspace(0., 100., 1001.))
+
+
+@pytest.fixture
+def rinex_observation(datadir):
+  basename = 'short_baseline_cors/seat032/seat0320.16o'
+  return datadir.join(basename).strpath
+
+
+@pytest.fixture
+def rinex_base(datadir):
+  basename = 'short_baseline_cors/ssho032/ssho0320.16o'
+  return datadir.join(basename).strpath
+
+
+@pytest.fixture
+def rinex_navigation(datadir):
+  basename = 'short_baseline_cors/seat032/seat0320.16n'
+  return datadir.join(basename).strpath

@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 
 from swiftnav import time as gpstime
-from swiftnav import observation, track, signal
+from swiftnav import track, signal
 
 from gnss_analysis import (synthetic, locations, propagate,
-                           ephemeris, observations, dgnss,
+                           ephemeris, observations,
                            time_utils)
 
 
@@ -19,28 +19,32 @@ def test_delta_tof_for_known_position(ephemerides):
   location_ecef = locations.NOVATEL_ABSOLUTE
 
   first_toa = ephemerides['time'] + np.timedelta64(100, 's')
-  first = synthetic.observations_from_toa(ephemerides, location_ecef,
-                                          first_toa)
+  first = synthetic.observation(ephemerides, location_ecef,
+                                first_toa)
   # we don't account for satellite error here because tot is in system time
-  first = ephemeris.add_satellite_state(first, account_for_sat_error=False)
+  first = ephemeris.add_satellite_state(first, account_for_sat_error=True)
 
   # propagate forward in time for i number of seconds and compare to
   # expected observations.
   for i in np.linspace(0, 10, 11):
     second_toa = first_toa + np.timedelta64(int(i), 's')
-    expected = synthetic.observations_from_toa(ephemerides, location_ecef,
-                                               second_toa)
+    expected = synthetic.observation(ephemerides, location_ecef,
+                                     second_toa)
     to_drop = [x for x in expected.columns if x.startswith('ref_')]
     expected.drop(to_drop, axis=1, inplace=True)
     expected = ephemeris.add_satellite_state(expected,
-                                             account_for_sat_error=False)
+                                             account_for_sat_error=True)
 
     actual = propagate.delta_tof_propagate(location_ecef, first,
-                                            new_toa=second_toa)
+                                           new_toa=second_toa)
 
-    # make sure the carrier phase is very nearly the same.
+    # make sure the carrier phase and pseudorange is very nearly the same.
     np.testing.assert_almost_equal(expected['carrier_phase'].values,
-                                   actual['carrier_phase'].values, 1)
+                                   actual['carrier_phase'].values, 6)
+    np.testing.assert_almost_equal(expected['pseudorange'].values,
+                                   actual['pseudorange'].values, 6)
+    np.testing.assert_almost_equal(expected['raw_pseudorange'].values,
+                                   actual['raw_pseudorange'].values, 6)
     # We don't expect the time of transmission to be perfect, but do
     # expect it to be within a nanosec of the actual value, so we pop
     # it from the data frame in order to use pandas equality compare utils
@@ -48,8 +52,11 @@ def test_delta_tof_for_known_position(ephemerides):
     d_tot = expected.pop('tot') - actual.pop('tot')
     assert np.all(np.abs(d_tot) <= np.timedelta64(1, 'ns'))
 
-    expected.pop('sat_time')
-    actual.pop('sat_time')
+    # TODO: propagate doppler?
+    not_propagated = ['sat_time', 'doppler', 'raw_doppler']
+    expected.drop(not_propagated, axis=1, inplace=True)
+    actual.drop(not_propagated, axis=1, inplace=True)
+    # Everything else should be perfectly equal
     pd.util.testing.assert_frame_equal(expected, actual[expected.columns])
 
 
@@ -77,14 +84,16 @@ def test_matches_make_propagated_sdiffs(ephemerides):
 
   toa = ephemerides['time'].values[0]
   toa += np.timedelta64(100, 's')
-  rover_obs = synthetic.observations_from_toa(ephemerides,
-                                             locations.NOVATEL_ABSOLUTE,
-                                             toa)
+  rover_obs = synthetic.observation(ephemerides,
+                                    locations.NOVATEL_ABSOLUTE,
+                                    toa)
+  rover_obs = ephemeris.add_satellite_state(rover_obs)
 
   base_toa = toa - np.timedelta64(1, 's')
-  base_obs = synthetic.observations_from_toa(ephemerides,
-                                             locations.LEICA_ABSOLUTE,
-                                             base_toa)
+  base_obs = synthetic.observation(ephemerides,
+                                   locations.LEICA_ABSOLUTE,
+                                   base_toa)
+  base_obs = ephemeris.add_satellite_state(base_obs)
 
   rover_nm = [make_nav_meas(x) for _, x in rover_obs.iterrows()]
   base_nm = [make_nav_meas(x) for _, x in base_obs.iterrows()]

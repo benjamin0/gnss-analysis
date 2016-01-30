@@ -1,0 +1,80 @@
+     2.11           OBSERVATION DATA    M (MIXED)           RINEX VERSION / TYPE
+teqc  2015Nov6      NGS Web User        20160201 21:29:34UTCPGM / RUN BY / DATE
+Solaris x86 5.10|AMD64|cc SC5.8 -xarch=amd64|=+|=+          COMMENT
+teqc  2015Nov6      NOAA/NOS/NGS/CORS   20160102 03:06:01UTCCOMMENT
++47.682295489 (latitude)                                    COMMENT
+-122.31514771 (longitude)                                   COMMENT
++74.4430      (elevation)                                   COMMENT
++.000000      (antenna height)                              COMMENT
+BIT 2 OF LLI FLAGS DATA COLLECTED UNDER A/S CONDITION       COMMENT
+ SNR is mapped to RINEX snr flag value [0-9]                COMMENT
+  L1 & L2: min(max(int(snr_dBHz/6), 0), 9)                  COMMENT
+teqc edited: all SBAS satellites excluded                   COMMENT
+teqc edited: all Compass satellites excluded                COMMENT
+teqc edited: all QZSS satellites excluded                   COMMENT
+SSHO                                                        MARKER NAME
+6                                                           MARKER NUMBER
+Gavin Schrock       WSRN                                    OBSERVER / AGENCY
+5137K78436          TRIMBLE NETR9       NAV 4.42 BOOT 4     REC # / TYPE / VERS
+1441127238          TRM57971.00     NONE                    ANT # / TYPE
+ -2299720.2890 -3635669.3300  4693221.8870                  APPROX POSITION XYZ
+        0.0000        0.0000        0.0000                  ANTENNA: DELTA H/E/N
+     1     1                                                WAVELENGTH FACT L1/2
+    11    L1    L2    L5    C1    P1    C2    P2    C5    S1# / TYPES OF OBSERV
+          S2    S5                                          # / TYPES OF OBSERV
+     1.0000                                                 INTERVAL
+teqc windowed: start @ 2016 Jan  1 00:00:00.000             COMMENT
+teqc windowed:  end  @ 2016 Jan  1 01:00:00.000             COMMENT
+teqc edited: all GLONASS satellites excluded                COMMENT
+  2016     1     1     0     0    0.0000000     GPS         TIME OF FIRST OBS
+    17                                                      LEAP SECONDS
+                                                            END OF HEADER
+ 16  1  1  0 59 59.0000000  0  7G02G03G06G07G16G23G32
+ 131134444.123 6 102182738.31342                  24954063.328
+                  24954069.004                          36.200          16.300
+
+ 115658939.775 7  90123921.49946                  22009162.656
+                  22009171.984                          46.700          36.400
+
+ 125259624.733 6  97604972.02843                  23836121.500
+                  23836131.922                          38.800          21.300
+
+ 124008181.767 7  96629853.25145                  23597946.047
+                  23597955.176                          43.600          30.000
+
+ 111634838.914 8  86988262.50546                  21243381.055
+                  21243386.262                          49.100          37.600
+
+ 106955945.290 8  83342398.82547                  20353025.930
+                  20353029.891                          51.500          42.600
+
+ 130375835.329 6 101591522.72343                  24809687.375
+                  24809699.414                          39.500          22.200
+
+ 16  1  1  1  0  0.0000000  4  4
++47.682295489 (latitude)                                    COMMENT
+-122.31514771 (longitude)                                   COMMENT
++74.4430      (elevation)                                   COMMENT
++.000000      (antenna height)                              COMMENT
+ 16  1  1  1  0  0.0000000  0  7G02G03G06G07G16G23G32
+ 131133543.479 6 102182036.49942                  24953893.828
+                  24953897.379                          36.300          16.300
+
+ 115661999.287 7  90126305.53846                  22009744.648
+                  22009754.262                          46.400          36.300
+
+ 125260901.889 6  97605967.20143                  23836364.758
+                  23836374.715                          39.500          22.000
+
+ 124005086.452 7  96627441.32745                  23597357.031
+                  23597365.973                          43.200          30.300
+
+ 111633936.088 8  86987559.00846                  21243209.242
+                  21243214.430                          49.500          38.000
+
+ 106955560.968 8  83342099.35247                  20352952.633
+                  20352956.453                          51.100          42.600
+
+ 130379520.002 6 101594393.90843                  24810388.125
+                  24810400.516                          39.400          22.600
+

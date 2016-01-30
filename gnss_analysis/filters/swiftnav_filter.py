@@ -48,6 +48,7 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     # converts the DataFrame to c objects
     sdiff_t = list(dgnss.create_single_difference_objects(sdiffs))
     # update the filter
+
     dgnss_management.dgnss_update_(sdiff_t, self.base_pos,
                                    disable_raim=self.disable_raim)
     # update the ambiguities
