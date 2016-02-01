@@ -31,18 +31,8 @@ def observations_from_toa(ephemerides, location_ecef, toa,
   # ASSUMPTION: no noise!
   rover_clock_error = 0.
   actual_time_of_flight = time_utils.seconds_from_timedelta(toa - tot)
-  # TODO,
   raw_pseudorange = (actual_time_of_flight + rover_clock_error) * c.GPS_C
   carrier_phase = actual_time_of_flight * c.GPS_L1_HZ
-
-#   sat_state = ephemeris.calc_sat_state(ephemerides, tot)
-#   sat_velocity = sat_state[['sat_v_x', 'sat_v_y', 'sat_v_z']]
-#
-#   los_pos = ephemeris.sagnac_rotation(sat_state[['sat_x', 'sat_y', 'sat_z']],
-#                                       toa - tot)
-#   los_vect = los_pos - location_ecef
-#   unit_vect = los_vect / np.linalg.norm(los_vect, axis=1)[:, None]
-#   doppler = np.dot(sat_velocity.values.T, unit_vect) / c.GPS_L1_LAMBDA
 
   obs = ephemerides.copy()
   obs['raw_pseudorange'] = raw_pseudorange
