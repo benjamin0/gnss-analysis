@@ -84,13 +84,10 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
   
   This is an abstract filter which takes care of the logic required
   to match base observations with corresponding rover observations.
-  Each time this filter is updated the rover observations are pushed
-  into a buffer and any base observations (if they exist) are matched
-  with the corresponding rover observations in the buffer.
   
-  This Filter does NOT propagate base observations to match the rover
-  observations, it is designed to be perform similar to piksi_firmware
-  with low latency mode OFF.
+  Each time this filter is updated the rover observations are pushed
+  into a buffer, then when a new base observation is encountered it
+  is matched with the corresponding rover observations from the buffer.
   """
 
   def __init__(self, *args, **kwdargs):
