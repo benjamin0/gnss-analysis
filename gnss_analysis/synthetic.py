@@ -1,3 +1,7 @@
+#
+# TODO: This will soon be changed to better align with RINEX specifications
+#
+
 import numpy as np
 
 from gnss_analysis import ephemeris
