@@ -1,0 +1,109 @@
+PROGRAM = datasheet95, VERSION = 8.8
+1        National Geodetic Survey,   Retrieval Date = NOVEMBER 10, 2015
+ AF9674 ***********************************************************************
+ AF9674  HT_MOD      -  This is a Height Modernization Survey Station.
+ AF9674  CORS        -  This is a GPS Continuously Operating Reference Station.
+ AF9674  DESIGNATION -  SEATTLE CORS ARP
+ AF9674  CORS_ID     -  SEAT
+ AF9674  PID         -  AF9674
+ AF9674  STATE/COUNTY-  WA/KING
+ AF9674  COUNTRY     -  US
+ AF9674  USGS QUAD   -  
+ AF9674
+ AF9674                         *CURRENT SURVEY CONTROL
+ AF9674  ______________________________________________________________________
+ AF9674* NAD 83(2011) POSITION- 47 39 14.30157(N) 122 18 34.05178(W)   ADJUSTED  
+ AF9674* NAD 83(2011) ELLIP HT-    44.666 (meters)        (08/??/11)   ADJUSTED
+ AF9674* NAD 83(2011) EPOCH   -  2010.00
+ AF9674* NAVD 88 ORTHO HEIGHT -    68.42  (meters)      224.5   (feet) GPS OBS   
+ AF9674  ______________________________________________________________________
+ AF9674  NAVD 88 orthometric height was determined with an earlier geoid model
+ AF9674  NAD 83(2011) X  - -2,300,592.857 (meters)                     COMP
+ AF9674  NAD 83(2011) Y  - -3,637,848.243 (meters)                     COMP
+ AF9674  NAD 83(2011) Z  -  4,691,079.215 (meters)                     COMP
+ AF9674  GEOID HEIGHT    -        -23.746 (meters)                     GEOID12B
+ AF9674
+ AF9674  Network accuracy estimates per FGDC Geospatial Positioning Accuracy
+ AF9674  Standards:                                                         
+ AF9674         FGDC (95% conf, cm)     Standard deviation (cm)     CorrNE 
+ AF9674            Horiz  Ellip           SD_N   SD_E   SD_h      (unitless)
+ AF9674  -------------------------------------------------------------------
+ AF9674  NETWORK    0.31   0.81           0.14   0.11   0.41      0.08867440
+ AF9674  -------------------------------------------------------------------
+ AF9674  Click here for local accuracies and other accuracy information.
+ AF9674
+ AF9674
+ AF9674.The coordinates were established by GPS observations
+ AF9674.and adjusted by the National Geodetic Survey in August 2011.
+ AF9674
+ AF9674.NAD 83(2011) refers to NAD 83 coordinates where the reference 
+ AF9674.frame has been affixed to the stable North American Tectonic Plate. 
+ AF9674
+ AF9674.The coordinates are valid at the epoch date displayed above
+ AF9674.which is a decimal equivalence of Year/Month/Day.
+ AF9674
+ AF9674.The orthometric height was determined by GPS observations and a
+ AF9674.high-resolution geoid model using precise GPS observation and
+ AF9674.processing techniques.
+ AF9674
+ AF9674.Significant digits in the geoid height do not necessarily reflect accuracy.
+ AF9674.GEOID12B height accuracy estimate available here.
+ AF9674
+ AF9674.The PID for the CORS L1 Phase Center is DH8001.
+ AF9674
+ AF9674.The XYZ, and position/ellipsoidal ht. are equivalent.
+ AF9674
+ AF9674.The ellipsoidal height was determined by GPS observations
+ AF9674.and is referenced to NAD 83.
+ AF9674
+ AF9674. The following values were computed from the NAD 83(2011) position.
+ AF9674
+ AF9674;                    North         East     Units Scale Factor Converg.
+ AF9674;SPC WA N     -    73,773.375   389,118.599   MT  0.99997484   -1 05 56.4
+ AF9674;SPC WA N     -   242,038.15  1,276,633.27   sFT  0.99997484   -1 05 56.4
+ AF9674;UTM  10      - 5,278,072.845   551,854.667   MT  0.99963304   +0 30 37.4
+ AF9674
+ AF9674!             -  Elev Factor  x  Scale Factor =   Combined Factor
+ AF9674!SPC WA N     -   0.99999300  x   0.99997484  =   0.99996784
+ AF9674!UTM  10      -   0.99999300  x   0.99963304  =   0.99962604
+ AF9674
+ AF9674                          SUPERSEDED SURVEY CONTROL
+ AF9674
+ AF9674  ELLIP H (06/27/12)   44.674  (m)                       GP(2010.00)    
+ AF9674  NAD 83(2011)-  47 39 14.30171(N)    122 18 34.05105(W) AD(2010.00) c
+ AF9674  NAD 83(CORS)-  47 39 14.30062(N)    122 18 34.05374(W) AD(2002.00) c
+ AF9674  ELLIP H (03/??/08)   44.677  (m)                       GP(2002.00) c c
+ AF9674  ELLIP H (02/10/07)   44.687  (m)                       GP(2007.00)    
+ AF9674  NAD 83(2007)-  47 39 14.30083(N)    122 18 34.05341(W) AD(2007.00) c
+ AF9674  NAD 83(CORS)-  47 39 14.30036(N)    122 18 34.05408(W) AD(2002.00) c
+ AF9674  ELLIP H (03/??/02)   44.687  (m)                       GP(2002.00) c c
+ AF9674  NAD 83(CORS)-  47 39 14.29990(N)    122 18 34.05463(W) AD(1997.00) c
+ AF9674  ELLIP H (04/??/00)   44.679  (m)                       GP(1997.00) c c
+ AF9674  NAD 83(CORS)-  47 39 14.29980(N)    122 18 34.05515(W) AD(1997.00) c
+ AF9674  ELLIP H (07/??/98)   44.673  (m)                       GP(1997.00) c c
+ AF9674
+ AF9674.Superseded values are not recommended for survey control.
+ AF9674
+ AF9674.NGS no longer adjusts projects to the NAD 27 or NGVD 29 datums.
+ AF9674.See file dsdata.txt to determine how the superseded data were derived.
+ AF9674
+ AF9674_U.S. NATIONAL GRID SPATIAL ADDRESS: 10TET5185478072(NAD 83)
+ AF9674
+ AF9674_MARKER: STATION IS THE ANTENNA REFERENCE POINT OF THE GPS ANTENNA
+ AF9674
+ AF9674                          STATION DESCRIPTION
+ AF9674
+ AF9674'DESCRIBED BY NATIONAL GEODETIC SURVEY 2011
+ AF9674'STATION IS A GPS CORS.  LATEST INFORMATION INCLUDING POSITIONS AND
+ AF9674'VELOCITIES ARE AVAILABLE IN THE COORDINATE AND LOG FILES ACCESSIBLE
+ AF9674'BY ANONYMOUS FTP OR THE WORLDWIDE WEB.
+ AF9674'   ftp://cors.ngs.noaa.gov/cors/README.txt
+ AF9674'   ftp://cors.ngs.noaa.gov/cors/coord/coord_08 
+ AF9674'   ftp://cors.ngs.noaa.gov/cors/station_log 
+ AF9674'   http://geodesy.noaa.gov/CORS
+
+ *** retrieval complete.
+ Elapsed Time = 00:00:01
+
+
+
