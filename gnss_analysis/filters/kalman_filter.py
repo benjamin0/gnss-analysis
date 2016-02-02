@@ -90,8 +90,10 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # to clock and hardware offsets.  As a result, we drop the first
     # row and take subsets of the transform matrix.
     P_bar = P[1:]
-    F = P_bar[:, 1:]
-
+    # As defined by Chang et al F is:
+    #   F = I - e e^T / (m - sqrt(m))
+    # Note that the size of e in equations 12 and 16 are different.
+    F = np.eye(m - 1) - np.ones((m - 1, m - 1)) / (m - np.sqrt(m))
     # We convert the pseudorange to wavelengths and scale by the
     # ratio of carrier phase to pseudorange noises, then apply
     # P_bar to get a new observation vector, y, which loosely corresponds to
