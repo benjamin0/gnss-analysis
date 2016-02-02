@@ -15,7 +15,7 @@ have explicit GPS times.
 
 """
 
-from gnss_analysis.stats_utils import truthify
+from gnss_analysis.utils import truthify
 from gnss_analysis.tools.records2table import hdf5_write
 from pandas.tslib import Timestamp, Timedelta
 import datetime
@@ -36,7 +36,7 @@ warnings.filterwarnings('ignore', category=pd.io.pytables.PerformanceWarning)
 
 
 #####################################################################
-## Time indexing and interpolation for DataFrames and Panels
+# # Time indexing and interpolation for DataFrames and Panels
 
 
 def interpolate_gpst_model(df_gps):
@@ -56,7 +56,7 @@ def interpolate_gpst_model(df_gps):
   init_gps_t = pd.to_datetime(df_gps['index'][0])
   gps_offset = pd.to_datetime(df_gps['index']) - init_gps_t
   gps_offset_y = gps_offset / np.timedelta64(1, 's')
-  log_offset_x = df_gps.host_offset*MSEC_TO_SEC
+  log_offset_x = df_gps.host_offset * MSEC_TO_SEC
   return pd.ols(y=gps_offset_y, x=log_offset_x, intercept=True)
 
 
@@ -99,7 +99,7 @@ def get_gps_time_col(store, tabs, gpst_col='approx_gps_time', verbose=False):
   idx = store.rover_spp.T.host_offset.reset_index()
   model = interpolate_gpst_model(idx)
   init_date = store.rover_spp.T.index[0]
-  f = lambda t1: apply_gps_time(t1*MSEC_TO_SEC, init_date, model)
+  f = lambda t1: apply_gps_time(t1 * MSEC_TO_SEC, init_date, model)
   for tab in tabs:
     # Because this is largely a research tool and the tables are
     # constantly in flux, just warn if the specified table isn't in
@@ -149,7 +149,7 @@ def reindex_tables(store, tabs, gpst_col='approx_gps_time', verbose=False):
       assert NotImplementedError
 
 #####################################################################
-## Anomaly detection
+# # Anomaly detection
 
 
 def find_largest_gaps(idx, n=10):
@@ -168,7 +168,7 @@ def find_largest_gaps(idx, n=10):
   Pandas DatetimeIndex
 
   """
-  adj =(idx - idx[0])/pd.Timedelta('00:00:01')
+  adj = (idx - idx[0]) / pd.Timedelta('00:00:01')
   return pd.Series(adj, idx).diff().nlargest(n)
 
 
@@ -181,10 +181,10 @@ def exact_match_text(table, contents, key='text'):
 
 
 #####################################################################
-## Calculating quantities of interest.
+# # Calculating quantities of interest.
 
 
-def get_sdiff(obs_type, rover_obs,  base_obs):
+def get_sdiff(obs_type, rover_obs, base_obs):
   """For a given observation type, produces single-differenced
   observations from the base station and the rover.
 
@@ -294,7 +294,7 @@ def get_distances(df, loc):
 
 
 #####################################################################
-## Log Annotations
+# # Log Annotations
 
 
 class LogEvent(object):
@@ -370,7 +370,7 @@ def mark_iar_add_sats(t):
 
 
 def mark_errors(t):
-  return t.rover_logs.T[t.rover_logs.T['level']==3]
+  return t.rover_logs.T[t.rover_logs.T['level'] == 3]
 
 def mark_warnings(t):
   return prefix_match_text(t.rover_logs, "WARNING:")
@@ -489,7 +489,7 @@ def mark_lock_cnt_diff(obs):
 
 
 #####################################################################
-## Plotting stuff
+# # Plotting stuff
 
 
 def get_center_pos(t):
@@ -622,8 +622,8 @@ class Plotter(object):
     """
     """
     # Define start and end of time series around GPS observation SNR
-    self.base_cn0 = self.hitl_log.base_obs[:, 'cn0', :].T/4.
-    self.rover_cn0 = self.hitl_log.rover_obs[:, 'cn0', :].T/4.
+    self.base_cn0 = self.hitl_log.base_obs[:, 'cn0', :].T / 4.
+    self.rover_cn0 = self.hitl_log.rover_obs[:, 'cn0', :].T / 4.
     self.index = self.rover_cn0.index
     self.i = self.index[0]
     self.j = self.index[-1]
@@ -689,7 +689,7 @@ class Plotter(object):
             ('log_false_phase_lock', mark_false_phase_lock(self.hitl_log)['text']),
             ('obs_refsat_rover', get_observed_refsats(self.hitl_log.rover_obs)),
             ('obs_refsat_base', get_observed_refsats(self.hitl_log.base_obs)),
-            ('mark_subframe_mismatch',  mark_subframe_mismatch(self.hitl_log)['text']),
+            ('mark_subframe_mismatch', mark_subframe_mismatch(self.hitl_log)['text']),
             ('mark_nav_phase_flip', mark_nav_phase_flip(self.hitl_log)['text']),
             ('mark_int_time_increase', mark_int_time_increase(self.hitl_log)['text']),
             ('mark_weird', mark_weird(self.hitl_log)['text']),
@@ -736,7 +736,7 @@ class Plotter(object):
     n_plots = 1 + sum([int(not dat.truncate(i, j).empty) for (dat, t) in targets]) + 2
     if self.verbose:
       print "Number of plots %d between %s. and %s.\n" % (n_plots, i, j)
-    fig, axs = plt.subplots(n_plots, 1, figsize=(16, 5*n_plots), sharex=False)
+    fig, axs = plt.subplots(n_plots, 1, figsize=(16, 5 * n_plots), sharex=False)
     n = 0
     for (dat, title) in targets:
       l = dat.truncate(i, j)
@@ -782,7 +782,7 @@ class Plotter(object):
 
 
 #####################################################################
-## Extraneous data utilities
+# # Extraneous data utilities
 
 # TODO (Buro): Replace with a proper os.path'd version
 
