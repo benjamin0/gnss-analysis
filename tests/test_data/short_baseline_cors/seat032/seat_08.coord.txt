@@ -1,0 +1,116 @@
+                              ***IGS 08***
+                SEATTLE (SEAT),  WASHINGTON
+
+ Created on 31Aug2011 at 09:30:29.
+ _____________________________________________________________________________ 
+|                                                                             |
+|         Antenna Reference Point(ARP): SEATTLE CORS ARP                      |
+|         ----------------------------------------------                      |
+|                             PID = AF9674                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Aug 2011 using data through gpswk 1631.                         |
+|     X =  -2300593.622 m     latitude    =  47 39 14.31780 N                 |
+|     Y =  -3637847.062 m     longitude   = 122 18 34.11298 W                 |
+|     Z =   4691079.313 m     ellipsoid height =   44.342   m                 |
+|                                                                             |
+| IGS08 VELOCITY                                                              |
+| Computed in Aug 2011 using data through gpswk 1631.                         |
+|     VX =  -0.0110 m/yr      northward =  -0.0087 m/yr                       |
+|     VY =   0.0002 m/yr      eastward  =  -0.0094 m/yr                       |
+|     VZ =  -0.0066 m/yr      upward    =  -0.0010 m/yr                       |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Aug 2011.                 |
+|     X =  -2300592.857 m     latitude    =  47 39 14.30157 N                 |
+|     Y =  -3637848.243 m     longitude   = 122 18 34.05178 W                 |
+|     Z =   4691079.215 m     ellipsoid height =   44.666   m                 |
+|                                                                             |
+| NAD_83 (2011) VELOCITY                                                      |
+| Transformed from IGS08 velocity in Aug 2011.                                |
+|     VX =   0.0082 m/yr      northward =   0.0046 m/yr                       |
+|     VY =   0.0009 m/yr      eastward  =   0.0064 m/yr                       |
+|     VZ =   0.0012 m/yr      upward    =  -0.0026 m/yr                       |
+|_____________________________________________________________________________|
+|                                                                             |
+| L1 Phase Center of the current GPS antenna: SEATTLE CORS L1 PC C            |
+| ----------------------------------------------------------------            |
+| The Trimble L1/L2 Dorne Margolin element wit antenna                        |
+| (Antenna Code = TRM29659.00     UNAV) was installed on 17Sep1998.           |
+|        The L2 phase center is 0.030 m above the L1 phase center.            |
+|                             PID = DH8001                                    |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Aug 2011 using data through gpswk 1631.                         |
+|     X =  -2300593.652 m     latitude    =  47 39 14.31785 N                 |
+|     Y =  -3637847.113 m     longitude   = 122 18 34.11291 W                 |
+|     Z =   4691079.380 m     ellipsoid height =   44.431   m                 |
+|                                                                             |
+| The IGS08 VELOCITY of the L1 PC is the same as that for the ARP.            |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Aug 2011.                 |
+|     X =  -2300592.887 m     latitude    =  47 39 14.30162 N                 |
+|     Y =  -3637848.294 m     longitude   = 122 18 34.05171 W                 |
+|     Z =   4691079.282 m     ellipsoid height =   44.756   m                 |
+|                                                                             |
+| The NAD_83 (2011) VELOCITY of the L1 PC is the same as that for the ARP.    |
+|_____________________________________________________________________________|
+|                                                                             |
+|         Monument: SEAT MON                                                  |
+|         ------------------                                                  |
+|                             PID = DH8002                                    |
+|         Inscribed: NONE                                                     |
+|                                                                             |
+|                                                                             |
+| IGS08 POSITION (EPOCH 2005.0)                                               |
+| Computed in Aug 2011 using data through gpswk 1631.                         |
+|     X =  -2300593.577 m     latitude    =  47 39 14.31780 N                 |
+|     Y =  -3637846.992 m     longitude   = 122 18 34.11298 W                 |
+|     Z =   4691079.222 m     ellipsoid height =   44.218   m                 |
+|                                                                             |
+| The IGS08 VELOCITY of the monument is the same as that for the ARP.         |
+|                                                                             |
+|                                                                             |
+| NAD_83 (2011) POSITION (EPOCH 2010.0)                                       |
+| Transformed from IGS08 (epoch 2005.0) position in Aug 2011.                 |
+|     X =  -2300592.813 m     latitude    =  47 39 14.30157 N                 |
+|     Y =  -3637848.172 m     longitude   = 122 18 34.05178 W                 |
+|     Z =   4691079.124 m     ellipsoid height =   44.543   m                 |
+|                                                                             |
+| The NAD_83 (2011) VELOCITY of the monument is the same as that for the ARP. |
+|_____________________________________________________________________________|
+
+
+ * Latitude, longitude and ellipsoid height are computed from their
+   corresponding cartesian coordinates using dimensions for the
+   GRS 80 ellipsoid: semi-major axis = 6,378,137.0 meters
+                          flattening = 1/298.257222101...
+
+
+ * WARNING: Mixing of antenna types can lead to errors of up to 10 cm.
+   in height unless antenna-phase-center variation and antenna-phase-center
+   offset are properly modeled.  See next comment.
+
+ * The coordinates shown on this page were computed using absolute antenna
+   calibrations.  CORS coordinates began using absolute antenna calibrations
+   beginning with IGS08 and NAD 83 (2011, MA11, PA11).  For additional
+   information on the derivation of these positions and velocities and
+   antenna calibrations consult:
+   http://geodesy.noaa.gov/CORS/coords.shtml
+   http://geodesy.noaa.gov/ANTCAL
+
+
+ * For more site specific information on the equipment history and
+   monumentation type consult:
+   ftp://geodesy.noaa.gov/cors/station_log/seat.log.txt
+   http://geodesy.noaa.gov/cgi-cors/corsage_2.prl?site=seat
+
+
+ * The NAD_83 position & velocity were revised in Mar. 2002.
+ * The ITRF00 & NAD_83 positions & velocities were revised in Mar. 2008.
+ * The position & velocity were revised in Aug 2011.
