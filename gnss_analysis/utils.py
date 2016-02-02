@@ -12,7 +12,7 @@
 from swiftnav.observation import SingleDiff
 import numpy as np
 import pandas as pd
-import swiftnav.lam as lam
+import swiftnav.lambda_ as lam
 
 def mk_swiftnav_sdiff(x):
   """
@@ -46,8 +46,8 @@ def sphere_b_covariance(var=0.0025):
 
 
 def dd_phi_cov(n, var):
-    one_row = np.array([[1.0]*n])
-    return (np.eye(n) + one_row.T.dot(one_row))*var
+    one_row = np.array([[1.0] * n])
+    return (np.eye(n) + one_row.T.dot(one_row)) * var
 
 
 def get_N_from_b(phase, de, b, b_cov=None, phi_var=None):
@@ -58,24 +58,24 @@ def get_N_from_b(phase, de, b, b_cov=None, phi_var=None):
         phi_var = 9e-4
     phi_cov = dd_phi_cov(num_dds, phi_var)
 
-    n_mean = phase - de.dot(b)/0.19029
-    n_cov = phi_cov + de.dot(b_cov).dot(de.T)/0.19029/0.19029
-    n = lam.ilsq(n_mean, n_cov, 1)[0]  # TODO verify shape
+    n_mean = phase - de.dot(b) / 0.19029
+    n_cov = phi_cov + de.dot(b_cov).dot(de.T) / 0.19029 / 0.19029
+    n = lam.ilsq(n_mean, n_cov, 1)[0]# TODO verify shape
     return n
 
 
 def normalize(x):
-    return x/np.sqrt(x.dot(x))
+    return x / np.sqrt(x.dot(x))
 
 
-l2pi = np.log(2*np.pi)
+l2pi = np.log(2 * np.pi)
 
 
 def neg_log_likelihood(x, sigma):
-    #pdf(x) = (2*pi)**(-k/2) * abs(det(sigma))**(-0.5) * exp(-0.5 * x' * sigma**(-1) * x)
-    #- ln(pdf(x)) = -[- k * 0.5 * ln(2*pi) - 0.5 * ln(abs(det(sigma))) - 0.5 * x' * sigma**(-1) * x ]
+    # pdf(x) = (2*pi)**(-k/2) * abs(det(sigma))**(-0.5) * exp(-0.5 * x' * sigma**(-1) * x)
+    # - ln(pdf(x)) = -[- k * 0.5 * ln(2*pi) - 0.5 * ln(abs(det(sigma))) - 0.5 * x' * sigma**(-1) * x ]
     #             = 0.5 * [ k * ln(2*pi) + ln(abs(det(sigma))) + x' * sigma**(-1) * x ]
-    #- ln(pdf(x)) = -(-k/2) * ln(2*pi) + (-0.5)      *    ln(abs(det(sigma))) + (-0.5) * x' * sigma**(-1) * x
+    # - ln(pdf(x)) = -(-k/2) * ln(2*pi) + (-0.5)      *    ln(abs(det(sigma))) + (-0.5) * x' * sigma**(-1) * x
     #             =    k/2   *   ln(2*pi) + 0.5  *        ln(abs(det(sigma))) +   0.5  * x' * sigma**(-1) * x
     #             =    k * 0.5 * ln(2*pi) + 0.5  * 0.5  * ln(abs(det(sigma)))          * x' * sigma**(-1) * x
     #             =    k * gamma                        * ln(abs(det(sigma)))          * x' * sigma**(-1) * x
@@ -96,7 +96,7 @@ def neg_log_likelihood(x, sigma):
 
 
 def get_de(ref_ecef, alm, sats_w_ref_first, time):
-    de = np.zeros((len(sats_w_ref_first)-1, 3))
+    de = np.zeros((len(sats_w_ref_first) - 1, 3))
     e0 = normalize(alm[sats_w_ref_first[0]].calc_state(time)[0] - ref_ecef)
     for i, sat in enumerate(sats_w_ref_first[1:]):
         de[i] = normalize(alm[sat].calc_state(time)[0] - ref_ecef) - e0
@@ -120,24 +120,24 @@ def truthifyv(phiv):
     truth[:] = np.nan
     for i, p in enumerate(phiv):
         if np.isnan(p):
-            #then either just finished a run, or in the middle of a lull
+            # then either just finished a run, or in the middle of a lull
             if not np.isnan(current_low):
-                #then just finished a run
+                # then just finished a run
                 runs.append((current_low, i, np.array(current_run)))
                 current_low = np.nan
                 current_run = []
         else:
-            #then just starting a run or in the middle of one
+            # then just starting a run or in the middle of one
             if np.isnan(current_low):
-                #then just starting a run
+                # then just starting a run
                 current_low = i
                 current_run.append(p)
             else:
-                #then in the middle of a run
+                # then in the middle of a run
                 current_run.append(p)
-    #finally may have ended in a run
+    # finally may have ended in a run
     if not np.isnan(current_low):
-        runs.append((current_low, i+1, np.array(current_run)))
+        runs.append((current_low, i + 1, np.array(current_run)))
     for low, high, run in runs:
         truth[low:high] = round(np.median(run))
     return truth
@@ -145,10 +145,10 @@ def truthifyv(phiv):
 def truthify(phi):
     phiT = phi.values.T
     truth = np.empty(phiT.shape)
-    truth[:,:] = np.nan
+    truth[:, :] = np.nan
     for i in range(len(phiT)):
         truth[i] = truthifyv(phiT[i])
-    return pd.DataFrame(truth.T,index=phi.index, columns=phi.columns)
+    return pd.DataFrame(truth.T, index=phi.index, columns=phi.columns)
 
 def to_repr(obj):
   """Returns string representation of an object.
