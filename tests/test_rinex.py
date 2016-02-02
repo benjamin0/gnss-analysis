@@ -128,6 +128,6 @@ def test_observation(rinex_observation):
   # and makes sure that value is parsed correctly.
   for i, obs in enumerate(rinex.iter_observations(f)):
     if np.any(obs['time'] == datetime.datetime(2016, 1, 15, 0, 0, 18)):
-      np.testing.assert_array_equal(obs.ix['G32', 'carrier_phase'].values,
-                                    np.array([125133856.682, 97506905.871]))
+      np.testing.assert_array_equal(obs.ix['G32', 'carrier_phase'],
+                                    np.array(125133856.682))
       break

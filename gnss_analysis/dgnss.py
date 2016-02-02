@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright (C) 2015 Swift Navigation Inc.
 # Contact: Ian Horn <ian@swiftnav.com>
 #          Bhaskar Mookerji <mookerji@swiftnav.com>
@@ -10,86 +9,133 @@
 # EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
 
+"""
+A set of utility functions related to differential global navigation
+satellite system (DGNSS) algorithms.
 
-"""Runs the DGNSS filters, given post-processed observations.
-
+In particular this handles computation of single and double differences
+between rover and base stations.
 """
 
-from gnss_analysis.constants import MIN_SATS
-from swiftnav.observation import SingleDiff
 import numpy as np
-import pandas as pd
-import swiftnav.dgnss_management as mgmt
+
+from swiftnav.observation import SingleDiff
+
+from gnss_analysis import propagate
 
 
-def mk_sdiff(x):
-  """Make a libswiftnav sdiff_t from an object with the same elements,
-  if possible, otherwise returning numpy.nan.  We assume here that if
-  C1 is not nan, then nothing else is nan, except potentially D1.
-
-  Parameters
-  ----------
-  x : Series
-    A series with all of the fields needed for a libswiftnav sdiff_t.
-
-  Returns
-  -------
-  SingleDiff or numpy.nan
-    If C1 is nan, we return nan, otherwise return a SingleDiff from
-    the Series.
-
+def make_propagated_single_differences(rover, base, base_pos_ecef):
   """
-  if np.isnan(x.pseudorange):
-    return np.nan
-  return SingleDiff(x.pseudorange,
-                    x.carrier_phase,
-                    x.doppler,
-                    np.array([x.sat_pos_x, x.sat_pos_y, x.sat_pos_z]),
-                    np.array([x.sat_vel_x, x.sat_vel_y, x.sat_vel_z]),
-                    x.snr,
-                    x.prn)
-
-def get_filter_state():
-  initial_sats = mgmt.get_sats_management()[1]
-  kf_means = mgmt.get_amb_kf_mean()
-  kf_covs = mgmt.get_amb_kf_cov2()
-  iar_ambs = mgmt.dgnss_iar_MLE_ambs()
-  print iar_ambs
-
-def process_dgnss(table):
-  """Software simulate the RTK filter given a GPS timestamped
-  observations from a HITL test. See:
-  piksi_firmware/src/solution.c:process_matched_obs.
-
-  For the time being, I've left out things like reset logic and
-  initialization, as is used in the firmware, and some vector/pandas
-  optimizations. In the future, we may want to (re)introduce those
-  things.
-
-  Parameters
-  ----------
-  table : pandas.io.pytables.HDFStore
-    Pandas table
-
+  Takes a pair of observations from a rover and a base station and
+  propagates the base observation to the rover observation time,
+  the computes the single difference between the two.
   """
-  assert isinstance(table, pd.HDFStore), "Not a Pandas table!"
-  init_done = False
-  results = {}
-  for timestamp, sdiff_t in table.sdiffs.iteritems():
-    rover_spp_sim_t = table.rover_spp_sim.get(timestamp, None)
-    base_spp_sim_t = table.base_spp_sim.get(timestamp, None)
-    if not (rover_spp_sim_t is None or base_spp_sim_t is None):
-      n_sds = len(sdiff_t)
-      sdiff_t = pd.Series(dict((prn, mk_sdiff(s)) for prn, s in sdiff_t.iteritems()))
-      if not init_done and n_sds >= MIN_SATS:
-        print "Initializing DGNSS!"
-        mgmt.dgnss_init(sdiff_t, base_spp_sim_t.values)
-        init_done = True
-      elif n_sds >= MIN_SATS:
-        get_filter_state()
-        mgmt.dgnss_update(sdiff_t, base_spp_sim_t.values)
-        b = None
-        num_used, b = mgmt.dgnss_fixed_baseline(sdiff_t, base_spp_sim_t.values)
-        #print b
-        results[timestamp] = b
-  return results
+  rover, base = rover.align(base, axis=0, join='inner')
+  # TODO:  It seems that it may actually be better to propagate to
+  #   a common time of transmission, which would allow you to assume
+  #   the satellite hadn't moved.  Currently the use of nano second
+  #   precision when generating synthetic observations adds too much
+  #   error to be able to discern if this is true or not.
+  prop_base = propagate.delta_tof_propagate(base_pos_ecef, base,
+                                            new_toa=rover['time'].values)
+  return single_difference(rover, prop_base)
+
+
+def single_difference(rover, base):
+  """
+  Computes the single difference between a pair of observations,
+  one from a rover and one from a base station (though really
+  they can be any two observation sets).
+  """
+  assert rover.index.name == 'sid'
+  assert base.index.name == 'sid'
+  # take only the satellites the two have in common
+  rover, base = rover.align(base, axis=0, join='inner')
+  assert 'pseudorange' in rover and 'raw_pseudorange' in rover
+  assert 'pseudorange' in base and 'raw_pseudorange' in base
+  # this sets which variables will be differenced
+  diff_vars = ['pseudorange', 'carrier_phase', 'doppler']
+  # actually perform the difference
+  sdiffs = base[diff_vars] - rover[diff_vars]
+  # handle the signal to noise ratio
+  if 'cn0' in rover:
+    sdiffs['cn0'] = np.minimum(rover.cn0, base.cn0)
+  # keep track of both the locks simultaneously
+  if 'lock' in rover:
+    sdiffs['lock'] = rover['lock'] + base['lock']
+  # return a copy of rover, but with single differnces instead of obs.
+  out = rover.copy()
+  out.update(sdiffs)
+  return out
+
+
+def double_difference(sdiffs, drop_ref=True):
+  """
+  Computes the double difference given a set of single differences.
+  This is done by picking a reference satellite, then computing the
+  difference between it's single difference and all other single
+  differences.
+  """
+  assert sdiffs.index.name == 'sid'
+  # subset to only the variables for which differencing makes sense
+  ss = sdiffs.reset_index()[['pseudorange', 'carrier_phase', 'sid']]
+  # Choose a reference satellite arbitrarily.  We don't need to take
+  # the difference between all permutations of satellites since they
+  # will largely be linear combinations of each other.
+  ref = ss.iloc[0]
+  if drop_ref:
+    ddiffs = ss.iloc[1:].copy()
+  else:
+    ddiffs = ss.copy()
+  # subtract out the reference satellites single differences
+  ddiffs[['pseudorange', 'carrier_phase']] -= ref[['pseudorange', 'carrier_phase']]
+  # create a new ref_sid variable so we know which satellite was used.
+  ddiffs['ref_sid'] = ref['sid']
+  return ddiffs
+
+
+def create_single_difference_objects(sdiffs):
+  """
+  Converts pandas DataFrame single difference objects to swiftnav c-type
+  SingleDiff objects.
+  """
+  assert sdiffs.index.name == 'sid'
+  for sid, sdiff in sdiffs.iterrows():
+    yield SingleDiff(pseudorange=sdiff.pseudorange,
+                     carrier_phase=sdiff.carrier_phase,
+                     doppler=sdiff.doppler,
+                     sat_pos=sdiff[['sat_x', 'sat_y', 'sat_z']].values,
+                     sat_vel=sdiff[['sat_v_x', 'sat_v_y', 'sat_v_z']].values,
+                     snr=sdiff.cn0,
+                     lock_counter=sdiff.lock,
+                     sid={'sat':sid, 'band':0, 'constellation': 0})
+
+
+def omega_dot_unit_vector(base_pos, sat, baseline_estimate):
+  """
+  The single differences are proportional to omega (which is
+  often very nearly 1) times the unit vector pointing from
+  base station to the satellite:
+  
+    (omega e)^T x = lambda (p_s - p_r)
+  
+  Where e is the unit vector, x is the baseline, omega is
+  
+    omega = |2 h - x| / (|h| + |h - x|),
+    
+  and h is the vector pointing from receiver to satellite.
+  The vector `omega e` is then:
+  
+    omega e = (2 * h - x) / (|h| + |h - x|)
+  
+  Reference:
+    Xiao-wen Chang and Christopher C. Paige and Lan Yin
+    Code and Carrier Phase Based Short Baseline GPS Positioning: Computational Aspects
+    Equation 1
+  """
+  sat_pos = np.atleast_2d(sat[['sat_x', 'sat_y', 'sat_z']].values)
+  # TODO: maybe add sagnac rotation here? Maybe not worth it?
+  h = sat_pos - base_pos
+  x = baseline_estimate
+  denom = (np.linalg.norm(h, axis=1) + np.linalg.norm(h - x, axis=1))
+  return (2 * h - baseline_estimate) / denom[:, None]

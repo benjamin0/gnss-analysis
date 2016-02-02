@@ -39,7 +39,7 @@ def sagnac_rotation(sat_pos, time_of_flight):
     An n by 3 array consisting of the x, y, z coordinates (columns) for
     n satellites (rows).  A single dimensional length 3 array works as
     well.
-  time_of_flight : scalar or arraylike (np.timedelta64)
+  time_of_flight : scalar or array-like (np.timedelta64)
     The time of flight of the signal, used to determine how much the
     earth has rotated.
     
@@ -247,7 +247,7 @@ def calc_sat_state(eph, t=None):
   # with pandas Series/DataFrames.  Then only at the end we reassemble into a
   # DataFrame.  This significantly speeds up the function.
 
-  if t is None and 'time' in eph:
+  if t is None:
     t = eph['time']
 
   # In order to support the use of pd.Timestamp objects for `t` we do
@@ -256,7 +256,7 @@ def calc_sat_state(eph, t=None):
     t = t.to_datetime64()
 
   # time difference between the query time (t) and the ephemeris reference
-  dt_toc = time_utils.seconds_from_timedelta(t - eph['toc'].values)
+  dt_toc = time_utils.seconds_from_timedelta(t - eph['toc'])
   # Seconds from clock data reference time (toc)
   clock_err = (eph.af0.values +
                dt_toc * (eph.af1.values + dt_toc * eph.af2.values) -
@@ -265,7 +265,7 @@ def calc_sat_state(eph, t=None):
   clock_rate_err = eph.af1.values + 2.0 * dt_toc * eph.af2.values
 
   # Seconds from the time from ephemerides reference epoch (toe)
-  dt_toe = time_utils.seconds_from_timedelta(t - eph['toe'].values)
+  dt_toe = time_utils.seconds_from_timedelta(t - eph['toe'])
 
   # If dt is greater than 4 hours our ephemerides isn't valid.
   if np.any(np.abs(dt_toe) > eph['fit_interval'] * 60 * 60):
@@ -455,8 +455,8 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
     # significantly.
     if account_for_sat_error:
       sat_error = time_utils.timedelta_from_seconds(sat_state['sat_clock_error'])
-      actual_tot = obs['tot'] - sat_error
-      sat_state = calc_sat_state(obs, actual_tot)
+      obs['tot'] -= sat_error
+      sat_state = calc_sat_state(obs, obs['tot'])
     obs = _update_columns(obs, sat_state)
 
   # compute the satellite position at the observation time

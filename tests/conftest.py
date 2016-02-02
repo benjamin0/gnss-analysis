@@ -73,4 +73,42 @@ def synthetic_observations(ephemerides):
 
   return synthetic.observations_from_tot(ephemerides, ref_loc, tot,
                                          rover_clock_error=0.,
-                                         account_for_sat_error=True)
+                                         include_sat_error=True)
+
+
+@pytest.fixture()
+def synthetic_state(ephemerides):
+  from gnss_analysis import synthetic, locations
+
+  rover_ecef = locations.NOVATEL_ABSOLUTE
+  base_ecef = locations.LEICA_ABSOLUTE
+
+  tot = ephemerides['time'] + np.timedelta64(100, 's')
+
+  return synthetic.synthetic_state(ephemerides,
+                                   rover_ecef, base_ecef,
+                                   tot)
+
+@pytest.fixture()
+def synthetic_stationary_state_sequence(ephemerides):
+  """
+  Returns an iterator over synthetic states for which the rover and
+  base station are stationary.
+  """
+  from gnss_analysis import synthetic, locations, ephemeris
+
+  def iter_states(time_steps):
+    rover_ecef = locations.NOVATEL_ABSOLUTE
+    base_ecef = locations.LEICA_ABSOLUTE
+
+    for dt in time_steps:
+      toa = ephemerides['time'] + np.timedelta64(100 + dt, 's')
+      state = synthetic.synthetic_state(ephemerides, rover_ecef,
+                                        base_ecef, toa)
+      state['base'] = ephemeris.add_satellite_state(state['base'],
+                                                    state['ephemeris'])
+      state['rover'] = ephemeris.add_satellite_state(state['rover'],
+                                                     state['ephemeris'])
+      yield state
+
+  return iter_states(np.linspace(0., 100., 1001.))

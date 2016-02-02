@@ -1,8 +1,10 @@
 import pytest
+import logging
 import numpy as np
 import pandas as pd
 
 from swiftnav import time as gpstime
+from swiftnav import ephemeris as swiftnav_ephemeris
 
 import gnss_analysis.constants as c
 
@@ -40,8 +42,8 @@ def test_calc_sat_state(ephemerides):
     pos, vel, clock_error, clock_error_rate = expected
     # make sure positions agree within a mm
     assert np.all(np.abs(act[['sat_x', 'sat_y', 'sat_z']] - pos) < 1e-3)
-    # make sure velocities agree within a mm/second
-    assert np.all(np.abs(act[['sat_v_x', 'sat_v_y', 'sat_v_z']] - vel) < 1e-3)
+    # make sure velocities agree within a micrometer/second
+    assert np.all(np.abs(act[['sat_v_x', 'sat_v_y', 'sat_v_z']] - vel) < 1e-6)
     # make sure clock error agree within a femtosecond
     assert np.all(np.abs(clock_error - act['sat_clock_error']) < 1e-12)
     # make sure clock error rate agrees within a femtosecond / second

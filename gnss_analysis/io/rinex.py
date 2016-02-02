@@ -5,6 +5,7 @@ Parses satellite observaiton files that have been reported using:
 
 Reference: ftp://igs.org/pub/data/format/rinex211.txt
 """
+import os
 import struct
 import string
 import logging
@@ -20,6 +21,22 @@ from gnss_analysis.io import sbp_utils
 def split_every(n, iterable):
   """
   Breaks an iterable into chunks of size n.
+  
+  Parameters
+  ----------
+  n : int
+    The size of each chunk.
+  iterable : iterable
+    The iterable that will be broken into size n chunks.  If
+    the end of the iterable is reached and the remainder is not
+    size n (ie, if the overall length is not a multiple of the
+    chunk size) an exception is raised.
+  
+  Returns
+  -------
+  chunks : iterable
+    A generator that yields size tuples of length n, containing
+    the next n elements in iterable.
   """
   i = iter(iterable)
   piece = list(itertools.islice(i, n))
@@ -485,7 +502,7 @@ def parse_observation_set(lines, observation_parser):
   # switch to using 'sid' as the index
   df.reset_index(inplace=True)
   df.set_index('sid', inplace=True)
-  return df
+  return normalize(df)
 
 
 def iter_observations(filelike):
@@ -507,7 +524,7 @@ def iter_observations(filelike):
     Produces a generator that iterates over observations sets,
     with one for each epoch.
   """
-  lines = ('{: <80}'.format(l) for l in filelike)
+  lines = iter_padded_lines(filelike)
   header = parse_header(lines)
   observation_parser = build_observation_parser(header)
 
@@ -536,7 +553,7 @@ def iter_navigations(filelike):
     Produces a generator that iterates over navigation sets
     (aka ephemerides) with one for each epoch.
   """
-  lines = ('{: <80}'.format(l) for l in filelike)
+  lines = iter_padded_lines(filelike)
   header = parse_header(lines)
   nav_parser = build_navigation_parser(header)
 
@@ -550,6 +567,35 @@ def iter_navigations(filelike):
     yield pd.DataFrame(list(grp)).set_index('sid')
 
 
+def iter_padded_lines(file_or_path, pad=80):
+  """
+  Takes a path to a file or a file-like object and returns
+  an iterator over the lines that pads the lines to ensure they
+  are at least `pad` characters long.
+  
+  Parameters
+  ----------
+  file_or_path : string or iterable
+    If this is a string a file is opened assuming the string is a path,
+    otherwise if file_or_path appears to be an iterable it is simply
+    iterated over to produce a new generator of padded lines.
+  pad : int (optional)
+    The minimum length of a line in characters.
+    
+  Returns
+  ---------
+  lines : generator
+    A generator which yields padded lines.
+  """
+  if isinstance(file_or_path, basestring):
+    if not os.path.exists(file_or_path):
+      raise ValueError("Expected %s to be a valid path" % file_or_path)
+    lines = iter(open(file_or_path, 'r'))
+  else:
+    lines = iter(file_or_path)
+  return (('{: <%d}' % pad).format(l) for l in lines)
+
+
 def simulate_from_rinex(rover, navigation, base=None):
   """
   Takes filelike objects for rover, navigation and base files
@@ -558,26 +604,45 @@ def simulate_from_rinex(rover, navigation, base=None):
   rover epoch and contains the most recent ephemeris and base
   observations up to that epoch.
   """
+
+  # The base observation file is optional.
   if base is not None:
-    iter_base = iter_observations(open(base, 'r'))
+    iter_base = iter_observations(base)
     next_base = iter_base.next()
 
-  iter_nav = iter_navigations(open(navigation, 'r'))
+  # Here we initialize the state with the first navigation
+  # message.
+  iter_nav = iter_navigations(navigation)
   state = {'ephemeris': iter_nav.next(), }
   next_nav = iter_nav.next()
 
-  for obs in iter_observations(open(rover, 'r')):
+  # The goal is to produce a generator that yields a state
+  # for each observed rover epoch.  Here we iterate over
+  # rover epoch's and search for the corresponding base and
+  # ephemeris messages.
+  for obs in iter_observations(rover):
+    # We assume that the ephemeris state should never be
+    # newer than the rover observation.
     assert state['ephemeris']['toc'][0] <= obs['time'][0]
+    # If the next navigation message comes before or after
+    # the current rover observation we update the state
     if next_nav['toc'][0] <= obs['time'][0]:
       state['ephemeris'].update(next_nav)
       next_nav = iter_nav.next()
-
+    # If we are using a base station we search for the
+    # most recent base observation that came at or before the
+    # rover epoch.
     if base is not None:
       while next_base['time'][0] <= obs['time'][0]:
         state['base'] = next_base
         next_base = iter_base.next()
-
+    # update the rover state
     state['rover'] = obs
-    yield state
+    # and return a copy of the dict (though not a deep copy since
+    # that causes uneccesary overhead.
+    yield state.copy()
 
 
+def normalize(rinex_obs):
+  rinex_obs.dropna(subset=['raw_pseudorange', 'carrier_phase'], inplace=True)
+  return rinex_obs
