@@ -1,9 +1,9 @@
-
+import scipy
 import logging
 import numpy as np
 import pandas as pd
 
-from gnss_analysis import dgnss, time_utils
+from gnss_analysis import dgnss
 from gnss_analysis import constants as c
 
 from gnss_analysis.filters import common
@@ -44,32 +44,195 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     self.sig_z = sig_z
     self.sig_cp = sig_cp
     self.sig_pr = sig_pr
+    # This sets our first guess to be within ~1000 km of the base station
+    self.sig_init = 5e5
     self.initialized = False
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
-    self.sids = rover_obs.index.intersection(base_obs.index)
-    amb = pd.Series(np.zeros(self.sids.size - 1), index=self.sids[1:])
-    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
+    """
+    This is inteded to be run once and only once.  It takes an
+    initial set of observations and creates the corresponding
+    state and covariance matrices
+    """
+    assert not self.initialized
+    self.active_sids = rover_obs.index.intersection(base_obs.index)
+    # A series containing the n, e and d components of the baseline (in meters)
+    pos = pd.Series(np.zeros(3), index=['n', 'e', 'd'])
+    # sets the reference satellite to be the first in the active set and
+    # creates the state vector of double differenced ambiguities.
+    amb = pd.Series(np.zeros(self.active_sids.size - 1),
+                    index=self.active_sids[1:])
+    # the state vector is a concatenation of the position and ambiguities
     self.x = pd.concat([pos, amb])
     self.P = np.eye(self.x.size)
-    # This sets our first guess to be within ~1000 km of the base station
-    self.P[:3] *= 5e5
-    self.P[3:] *= 5e5 / c.GPS_L1_LAMBDA
+    # initialize the position covariance
+    self.P[:3] *= self.sig_init
+    # and the ambiguity covariance.
+    self.P[3:] *= self.sig_init / c.GPS_L1_LAMBDA
     self.initialized = True
 
   def get_baseline(self, state):
+    """
+    Returns the baseline corresponding to the current state.
+    """
+    # TODO: In theory we could return the baseline for future / past epochs
 
+    # For now we make just return the current filter state.
     assert self.cur_time == common.get_unique_value(state['rover']['time'])
     if not self.initialized:
       return None
     else:
       return self.x.iloc[:3]
 
-  def observation_model(self, rover_obs, base_obs):
+  def choose_reference_sat(self, new_sids):
     """
-    Builds variables required for the observation model from a pair of rover
-    and base observations.
+    Uses the current set of active sids and the set of new sids to
+    choose a new reference satellite (one that is active in both
+    sets).
+    """
+    # For now we just set the new reference to be the next
+    # common satellite.  Note at this point the active sids
+    # actually corresponds to the active sids at the last iteration.
+    common_sids = self.active_sids.intersection(new_sids)
+    # Just grab the first one in common
+    # TODO: maybe choose based off of signal strength?
+    return common_sids.values[0]
+
+
+  def get_reference_satellite(self):
+    """
+    Returns the sid for the reference satellite.
+    """
+    # The current reference is the satellite that isn't included
+    # in the integer ambiguity index.
+    cur_ref = self.active_sids.difference(self.x.index[3:])
+    # There should only ever be one such satellite.
+    return common.get_unique_value(cur_ref)
+
+
+  def change_reference_satellite(self, new_ref=None, new_sids=None):
+    """
+    Performs a transformation that swaps the old reference satellite
+    for a new reference.  The filter state and covariance are
+    then modified in place.
+    """
+    # infer the current reference satellite
+    cur_ref = self.get_reference_satellite()
+
+    # choose the new reference if it wasn't specified
+    if new_ref is None:
+      if new_sids is None:
+        raise ValueError("Need either a new reference or new sat ids to"
+                         " decide which satellite to use as reference.")
+      new_ref = self.choose_reference_sat(new_sids)
+
+    # make sure the new reference was around last time.
+    assert new_ref in self.active_sids.values
+
+    # avoid unnecessary computation
+    if new_ref == cur_ref:
+      logging.warn("Tried changing reference satellite to the same"
+                   " satellite.  This implies faulty logic elsewhere")
+      return
+
+    logging.debug("Changing reference from %d to %d" % (cur_ref, new_ref))
+
+    # determine which index in x corresponds to the new reference
+    new_ind = self.x.index.get_indexer([new_ref])
+
+    # build an orthogonal matrix that will swap references, this is
+    # done by subtracting out the ambiguities corresponding to the
+    # new reference from the rest of the ambiguities:
+    #
+    # N_1 - N_0            N_1 - N_j  = (N_1 - N_0) - (N_j - N_0)
+    #    ..          K
+    # N_j - N_0    --->    N_0 - N_j  = -(N_j - N_0)
+    #    ..
+    # N_n - N_0            N_n - N_j  = (N_n - N_0) - (N_j - N_0)
+    #
+    # Which is accomplished by creating an identity matrix, then
+    # replacing the column corresponding to the new reference with
+    # negative ones.
+    K = np.eye(self.x.size)
+    # The first three indices are the position, we don't want
+    # to mess with those.
+    K[3:, new_ind] = -1.
+    self.K = K
+
+    # Apply the transformation to swap the cur_ref for the new one
+    self.x.values[:] = np.dot(K, self.x)
+    # reflect the change in the index of x
+    self.x.index.values[new_ind] = cur_ref
+
+    # And apply the transformation to the covariance matrix as well.
+    self.P = np.dot(np.dot(K, self.P), K.T)
+
+
+  def drop_satellites(self, to_drop, new_sids):
+    """
+    Drops satellites from the filter state/covariance, if any
+    of the satellites being dropped are reference satellites
+    the reference is first changed to another active one, then dropped.
+    """
+    # If the dropped satellite is not in the state (x) then
+    # it must be the reference satellite.  In which case we
+    # must first change the reference.
+    if not to_drop.isin(self.x.index):
+      self.change_reference_satellite(new_sids)
+
+    # Iteratively drop satellites from the state and rows/cols from
+    # the covariance matrix.
+    for drop in to_drop:
+      ind = common.get_unique_value(self.x.index.get_indexer([drop]))
+      self.x = self.x.drop(drop)
+      self.P = np.delete(np.delete(self.P, ind, axis=0), ind, axis=1)
+      self.active_sids = self.active_sids.drop(drop)
+
+
+  def add_satellites(self, to_add):
+    """
+    Updates the filter state and covariance to contain new satellites.
+    """
+    self.x = self.x.append(pd.Series([0], index=to_add))
+    new_P = np.empty(np.array(self.P.shape) + to_add.size)
+    new_P[:-to_add.size, :-to_add.size] = self.P
+    new_P[-to_add.size:, -to_add.size:] = self.sig_init * np.eye(to_add.size)
+    self.P = new_P
+    self.active_sids = self.active_sids.append(to_add)
+
+
+  def update_active_satellites(self, new_sids):
+    """
+    This takes care of add/drop satellite logic.
+    """
+    # the full set of tracked sids is the set of active ones
+    # (which includes the reference) and any others tracked
+    # in the state (x). For now x should only contain active
+    # satellites, but in the future we may want to leave
+    # deactivated satellites around.
+    all_sids = self.active_sids.union(self.x.index[3:])
+    # are all the satellites already active
+    if np.all(new_sids == self.active_sids):
+      return
+
+    # Any satellites that aren't in the set of new satellites
+    # but were active must have been lost, so we drop them
+    to_drop = self.active_sids.difference(new_sids)
+    if to_drop.size:
+      self.drop_satellites(to_drop, new_sids)
+
+    # Any satellites that are in the new set but not in the
+    # active set must be new so we add them.
+    to_add = new_sids.difference(all_sids)
+    if to_add.size:
+      self.add_satellites(to_add)
+
+
+  def double_difference_observation_model(self, sdiffs):
+    """
+    Builds the double differenced (or in this case, orthogonal equivalent
+    of the double difference) observation model.
     
     Returns
     -------
@@ -84,14 +247,12 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
       model.  In otherwords, it tells us how confident we are in the values
       of y.
     """
-    sdiffs = self.get_single_diffs(rover_obs, base_obs, propagate_base=False)
-
     # This is from equation 1 in Chang, Paige Yin, it is essentially
     # the unit vector pointing from the base receiver to each satellite
     # scaled such that omega_e * baseline = single_difference.
     # As they mention, it could be replaced by one but for high precision
     # applications should be taken into account.
-    omega_e = dgnss.omega_dot_unit_vector(self.base_pos, base_obs,
+    omega_e = dgnss.omega_dot_unit_vector(self.base_pos, sdiffs,
                                           self.x.values[:3])
     # E_k = omega_e / lambda (see equation 8).
     E = omega_e / c.GPS_L1_LAMBDA
@@ -112,12 +273,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # After applying P to the single differences we will still have m
     # observations, but the first will contain unknown errors corresponding
     # to clock and hardware offsets.  As a result, we drop the first
-    # row and take subsets of the transform matrix.
+    # row and take a subset of the transform matrix.
     P_bar = P[1:]
-    # As defined by Chang et al F is:
-    #   F = I - e e^T / (m - sqrt(m))
-    # Note that the size of e in equations 12 and 16 are different.
-    F = np.eye(m - 1) - np.ones((m - 1, m - 1)) / (m - np.sqrt(m))
+
     # We convert the pseudorange to wavelengths and scale by the
     # ratio of carrier phase to pseudorange noises, then apply
     # P_bar to get a new observation vector, y, which loosely corresponds to
@@ -126,16 +284,27 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     y = np.concatenate([np.dot(P_bar, sdiffs['carrier_phase'].values),
                         sig_ratio * np.dot(P_bar, pr_in_wavelengths)])
 
+    if np.any(np.isnan(y)):
+      import webbrowser
+      webbrowser.open('http://www.quickmeme.com/img/c7/c727a64980f4d337c8'
+                      '46903ce407fe2ffccfaeecb9c252a3045f6b7a8a10b2a6.jpg')
+      raise ValueError("I've made a huge mistake")
+
     # Now we compute the linear operator that produces our
     # observations y from the current state estimate x.
     #   y = np.dot(H, x) + v ; v ~ N(0, sig_cp)
     PE = np.dot(P_bar, E)
+    # As defined by Chang et al F is:
+    #   F = I - e e^T / (m - sqrt(m))
+    # Note that the size of e in equations 12 and 16 are different.
+    F = np.eye(m - 1) - np.ones((m - 1, m - 1)) / (m - np.sqrt(m))
     # H takes a block form [[PE, F], [sig * PE, 0]]
     # the first column of H is simply the double differencing operators
     # computed above.  The second column corresponds to coefficients
     # for the integer abiguities.  Note that these are only applied
     # to the carrier phase.
-    H = np.asarray(np.bmat([[PE, F], [sig_ratio * PE, np.zeros_like(F)]]))
+    H = np.asarray(np.bmat([[PE, F],
+                            [sig_ratio * PE, np.zeros_like(F)]]))
 
     # R is the observation noise.  Notice that because we rescaled above
     # our observation noise has a constant diagonal.  Also note that
@@ -143,30 +312,18 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # of carrier_phase and because R is the noise in the double differenced
     # carrier phase, we have to multiply by 4.
     R = 4 * self.sig_cp * np.eye(H.shape[0])
-
     return y, H, R
 
-  def update_matched_obs(self, rover_obs, base_obs):
-    if not self.initialized:
-      self.initialize_filter(rover_obs, base_obs)
-
-    self.cur_time = common.get_unique_value(rover_obs['time'])
-
-    if not np.all(self.sids.isin(base_obs.index)):
-      raise NotImplementedError("The base station lost a satellte, which"
-                                " isn't supported yet")
-    if not np.all(self.sids.isin(rover_obs.index)):
-      raise NotImplementedError("The rover lost a satellte, which"
-                                " isn't supported yet")
-
-    base_obs = base_obs.ix[self.sids]
-    rover_obs = rover_obs.ix[self.sids]
-
-
-
+  def process_model(self):
+    """
+    Returns the process model which consists of the matrix F and Q
+    such that:
+    
+        x_{k|k-1} = F x_{k-1|k-1} + N(0, Q)
+    """
+    # It's possible that the observation_model will drop satellites
+    # when it detects slips, so this definition of n needs to be after
     n = self.x.size
-    # the observation vector, linear operator and observation noise
-    y, H, R = self.observation_model(rover_obs, base_obs)
     # the process model.
     F = np.eye(n)
     # process noise
@@ -176,15 +333,56 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # a tenth of a second time step comes out to a process
     # noise with standard deviation of two.
     Q[:3] *= self.sig_x
-    # the rest are the ambiguities which should never change.  In
-    # fact, in future iterations of this model they should be
-    # removed from the filter altogether.
+    # the rest are the ambiguities which should slowly change
+    # TODO: what do we do about cycle slips.
     Q[3:] *= self.sig_z
+    return F, Q
 
+  def update_matched_obs(self, rover_obs, base_obs):
+    """
+    Updates the model given a set of time matched rover and base
+    observations.  The update is done in place.
+    """
+    if not self.initialized:
+      self.initialize_filter(rover_obs, base_obs)
+
+    # keep track of the current time of the filter
+    self.cur_time = common.get_unique_value(rover_obs['time'])
+
+    # Compute the single differences.  get_single_diffs is
+    # expected to take care of logic such as determining if there
+    # was a loss of lock, and dropping such satellites.
+    sdiffs = self.get_single_diffs(rover_obs, base_obs, propagate_base=False)
+
+    # Here we check if we've added or lost any satellites
+    if sdiffs.index.sym_diff(self.active_sids).size:
+      self.update_active_satellites(sdiffs.index)
+
+    # We expect the sdiffs to be in the same order as the ambiguity states
+    # Here we simply make sure that's the case
+    expected_order = self.x.index[3:].insert(0, self.get_reference_satellite())
+
+    if not np.all(sdiffs.index == expected_order):
+      sdiffs = sdiffs.ix[expected_order]
+
+    # if these fail we clearly didn't update the active satellites
+    # properly.
+    assert sdiffs.index.size == self.active_sids.size
+    assert np.all(sdiffs.index.isin(self.active_sids))
+
+    # the observation vector, linear operator and observation noise
+    y, H, R = self.double_difference_observation_model(sdiffs)
+    # the process model
+    F, Q = self.process_model()
+
+    # use the process model to predict x_{k|k-1}
     x, P = kalman_predict(self.x.values, self.P, F, Q)
+    # use the observation model to form the posterior x_{k|k}
     x, P = kalman_update(x, P, y, H, R)
 
+    # x is a pandas Series, we want to keep the index but fill the values
     self.x.values[:] = x
+    # P is an ndarray so we just overwrite it.
     self.P = P
 
 
@@ -318,6 +516,8 @@ def kalman_update(x, P, y, H, R):
   S = np.dot(np.dot(H, P), H.T) + R
   # NOTE: np.linalg.inv(S) is a horrible HORRIBLE thing to do, but
   #   for the first time around it should be fine.
+  # precompute factors used in K
+  # K is a function that performs K.dot(z)
   K = np.dot(np.dot(P, H.T), np.linalg.inv(S))
   x = x + np.dot(K, innov)
   P = np.dot(np.eye(P.shape[0]) - np.dot(K, H), P)

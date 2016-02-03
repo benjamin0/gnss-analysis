@@ -46,6 +46,9 @@ def single_difference(rover, base):
   Computes the single difference between a pair of observations,
   one from a rover and one from a base station (though really
   they can be any two observation sets).
+  
+  The resulting data frame will be a copy of the base data frame
+  where any differenced values have been overwritten.
   """
   assert rover.index.name == 'sid'
   assert base.index.name == 'sid'
@@ -64,8 +67,10 @@ def single_difference(rover, base):
   # keep track of both the locks simultaneously
   if 'lock' in rover:
     sdiffs['lock'] = (rover['lock'] + base['lock'])
-  # return a copy of rover, but with single differnces instead of obs.
-  out = rover.copy()
+  # return a copy of base, but with single differnces instead of obs.
+  # the reason we return the base instead of the rover is that we often
+  # want to know the location of satellite .
+  out = base.copy()
   out.update(sdiffs)
   return out
 
