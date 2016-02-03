@@ -96,9 +96,9 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
     self.rover_buffer = pd.DataFrame()
     self.prev_base = None
 
-  def updated_matched_obs(self, rover_obs, base_obs):
+  def update_matched_obs(self, rover_obs, base_obs):
     raise NotImplementedError("TimeMatchingDGNSSFilter requires implementing"
-                              " updated_matched_obs.")
+                              " update_matched_obs.")
 
   def _pop_from_buffer(self, t):
     """
@@ -193,4 +193,4 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
     # We now have a pair of rover and base observations that correspond
     # to the same time of arrival, we pass them on to the implementing
     # filter.
-    self.updated_matched_obs(rover_obs, base_obs)
+    self.update_matched_obs(rover_obs, base_obs)

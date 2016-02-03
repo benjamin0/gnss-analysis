@@ -1,8 +1,9 @@
 
 import logging
 import numpy as np
+import pandas as pd
 
-from gnss_analysis import dgnss
+from gnss_analysis import dgnss, time_utils
 from gnss_analysis import constants as c
 
 from gnss_analysis.filters import common
@@ -20,26 +21,50 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
   differences.
   """
 
-  def __init__(self, *args, **kwdargs):
+  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02, sig_pr=3.,
+               *args, **kwdargs):
+    """
+    Creates an instance of a KalmanFilter with the option of
+    specifying observation and process noise.
+    
+    Parameters
+    ----------
+    sig_x : float
+      The process noise corresponding to the position estimate (meters)
+        x_k|{k-1} = x_{k-1}|{k-1} + N(0, sig_x^2)
+    sig_z : float
+      The process noise corresponding to the ambiguity estimate. (cycles)
+        z_k|{k-1} = z_{k-1}|{k-1} + N(0, sig_z^2)
+    sig_cp : float
+      The observation noise corresponding to carrier phase. (cycles)
+    sig_pr : float
+      The observation noise correspondong to pseudorange. (meters)
+    """
+    self.sig_x = sig_x
+    self.sig_z = sig_z
+    self.sig_cp = sig_cp
+    self.sig_pr = sig_pr
     self.initialized = False
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
-    self.prev_time = common.get_unique_value(rover_obs['time'])
+    self.cur_time = common.get_unique_value(rover_obs['time'])
     self.sids = rover_obs.index.intersection(base_obs.index)
-    self.x = np.zeros(3 + self.sids.size - 1)
+    amb = pd.Series(np.zeros(self.sids.size - 1), index=self.sids[1:])
+    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
+    self.x = pd.concat([pos, amb])
+    self.P = np.eye(self.x.size)
     # This sets our first guess to be within ~1000 km of the base station
-    self.P = 5e5 * np.eye(self.x.size)
+    self.P[:3] *= 5e5
+    self.P[3:] *= 5e5 / c.GPS_L1_LAMBDA
     self.initialized = True
 
-  def update_filter(self,):
-    pass
-
   def get_baseline(self, state):
+    assert self.cur_time == common.get_unique_value(state['rover']['time'])
     if not self.initialized:
       return None
     else:
-      return self.x[:3]
+      return self.x.iloc[:3]
 
   def observation_model(self, rover_obs, base_obs):
     """
@@ -67,7 +92,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # As they mention, it could be replaced by one but for high precision
     # applications should be taken into account.
     omega_e = dgnss.omega_dot_unit_vector(self.base_pos, base_obs,
-                                          self.x[:3])
+                                          self.x.values[:3])
     # E_k = omega_e / lambda (see equation 8).
     E = omega_e / c.GPS_L1_LAMBDA
 
@@ -80,10 +105,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     u[0] += 1
     P = np.eye(m) - 2 * np.outer(u, u) / np.inner(u, u)
 
-    # TODO: confirm these values for the measurement standard deviations!
-    sig_cp = 0.1
-    sig_pr = 10. / c.GPS_L1_LAMBDA
-    sig = sig_cp / sig_pr
+    # sig is the ratio of the carrier phase and pseudorange
+    # standard deviations in units of cycles.
+    sig_ratio = self.sig_cp / (self.sig_pr / c.GPS_L1_LAMBDA)
 
     # After applying P to the single differences we will still have m
     # observations, but the first will contain unknown errors corresponding
@@ -100,7 +124,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # double differenced observations with error covariance sig^2 * I.
     pr_in_wavelengths = sdiffs['pseudorange'].values / c.GPS_L1_LAMBDA
     y = np.concatenate([np.dot(P_bar, sdiffs['carrier_phase'].values),
-                        sig * np.dot(P_bar, pr_in_wavelengths)])
+                        sig_ratio * np.dot(P_bar, pr_in_wavelengths)])
 
     # Now we compute the linear operator that produces our
     # observations y from the current state estimate x.
@@ -111,21 +135,35 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # computed above.  The second column corresponds to coefficients
     # for the integer abiguities.  Note that these are only applied
     # to the carrier phase.
-    H = np.asarray(np.bmat([[PE, F], [sig * PE, np.zeros_like(F)]]))
+    H = np.asarray(np.bmat([[PE, F], [sig_ratio * PE, np.zeros_like(F)]]))
 
-    # observation noise
-    R = sig_cp * np.eye(H.shape[0])
+    # R is the observation noise.  Notice that because we rescaled above
+    # our observation noise has a constant diagonal.  Also note that
+    # because we've defined sig_cp to be the noise in an observation
+    # of carrier_phase and because R is the noise in the double differenced
+    # carrier phase, we have to multiply by 4.
+    R = 4 * self.sig_cp * np.eye(H.shape[0])
 
     return y, H, R
 
-
-  def updated_matched_obs(self, rover_obs, base_obs):
+  def update_matched_obs(self, rover_obs, base_obs):
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
 
-    logging.warn("Ignoring any rising/setting satellites")
-    base_obs = base_obs.ix[self.sids]
-    rover_obs = rover_obs.ix[self.sids]
+    # keep track of the current time of the filter
+    self.cur_time = common.get_unique_value(rover_obs['time'])
+
+    # Here we make sure that we don't lose any satellites
+    common_sids = rover_obs.index.intersection(base_obs.index)
+    if not np.all(common_sids == self.sids):
+      if self.sids.difference(common_sids).size > 0:
+        raise NotImplementedError("Not capable of handling dropped"
+                                  " satellites yet")
+      else:
+        logging.warn("Added a satellite but it is being ignored.")
+    # Subset the observations to the common sids
+    base_obs = base_obs.ix[common_sids]
+    rover_obs = rover_obs.ix[common_sids]
 
     n = self.x.size
     # the observation vector, linear operator and observation noise
@@ -138,16 +176,16 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # the receiver will be moving more than 140 mph which over
     # a tenth of a second time step comes out to a process
     # noise with standard deviation of two.
-    Q[:3] *= 2.
+    Q[:3] *= self.sig_x
     # the rest are the ambiguities which should never change.  In
     # fact, in future iterations of this model they should be
     # removed from the filter altogether.
-    Q[3:] *= 0.001
+    Q[3:] *= self.sig_z
 
-    x, P = kalman_predict(self.x, self.P, F, Q)
+    x, P = kalman_predict(self.x.values, self.P, F, Q)
     x, P = kalman_update(x, P, y, H, R)
 
-    self.x = x
+    self.x.values[:] = x
     self.P = P
 
 
