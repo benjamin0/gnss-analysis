@@ -1,13 +1,34 @@
 # Based on http://conda.pydata.org/docs/travis.html
+sudo: false
 language: python
-sudo: true # use container based build
 notifications:
   email: false
 
+cache:
+  directories:
+    - $HOME/.cache/pip
+
+# CMake 2.8.9 is needed to build libswiftnav, but Travis only supports
+# an earlier version. This sets up that dependency. See also:
+#   https://gist.github.com/winterz/10cc2741d466cbd8ff21
+#   https://github.com/travis-ci/travis-ci/issues/2030
+addons:
+  apt:
+    sources:
+    - kalakris-cmake
+    packages:
+    - cmake
+    - check
+    - lcov
+    # install hdf5 so tables installs properly
+    - libhdf5-serial-dev
+    - liblapack-dev
+    - libblas-dev
+    - gfortran
+    - build-essential
+    - pkg-config
+
 before_install:
-  # install hdf5 so tables installs properly
-  - sudo apt-get update -qq
-  - sudo apt-get install -y libhdf5-serial-dev cmake
   # download and setup conda
   - wget http://repo.continuum.io/miniconda/Miniconda-3.16.0-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
@@ -23,16 +44,21 @@ install:
   - source activate gnss_analysis
   # checkout libswiftnav and compile it
   - git clone https://github.com/swift-nav/libswiftnav
+  # Hack so python bindings can find locally installed library file
+  - export LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/libswiftnav/build/install/usr/local/lib
   - cd libswiftnav
-  - mkdir build; cd build
+  - mkdir build
+  - cd build/
   - cmake ../ -DCMAKE_C_FLAGS=-fPIC
   - make
-  - sudo make install
-  # back to the root directory
-  - cd ../..
-  # make sure libswiftnav-python can find its .so
-  - export LD_LIBRARY_PATH=/usr/local/lib/
+  # Install locally to avoid sudo
+  - make DESTDIR="./install" install
+  - cd ../python
+  - python setup.py build
+  - python setup.py install
+  - cd ../../
   # install gnss-analysis
+  - pip install -U pip
   - pip install -r requirements.txt
   - pip install -e ./
 
