@@ -102,8 +102,14 @@ def create_single_difference_objects(sdiffs):
   """
   assert sdiffs.index.name == 'sid'
   for sid, sdiff in sdiffs.iterrows():
-    if isinstance(sid, basestring) and sid.startswith('G'):
-      sid = int(sid[1:])
+    if isinstance(sid, basestring):
+      if sid.startswith('G'):
+        sid = int(sid[1:])
+      else:
+        raise NotImplementedError("The sid %s appears to be a GLONAS"
+                                  " satellite or other non supported type"
+                                  % sid)
+
     yield SingleDiff(pseudorange=sdiff.pseudorange,
                      carrier_phase=sdiff.carrier_phase,
                      doppler=sdiff.doppler,
