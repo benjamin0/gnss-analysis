@@ -240,7 +240,7 @@ def parse_header(f):
   def iter_type_and_content():
     for line in f:
       # the last line of the header will end with "END OF HEADER"
-      if "END OF HEADER" in line:
+      if line.strip().endswith("END OF HEADER"):
         break
       # splits apart the line type and line content
       content, line_type = content_parser(line)
