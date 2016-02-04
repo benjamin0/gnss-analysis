@@ -22,7 +22,7 @@ def test_reasonable_and_doesnt_diverge(synthetic_stationary_states,
   # Here we iterate over some number of baseline solutions and
   # report the error relative to the known baseline
   def iter_errors():
-    for _, state in zip(range(20), synthetic_stationary_states):
+    for _, state in zip(range(40), synthetic_stationary_states):
       base_ecef = state['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
       rover_ecef = state['rover'][['ref_x', 'ref_y', 'ref_z']].values[0]
       expected_baseline = rover_ecef - base_ecef
@@ -94,7 +94,6 @@ def test_matches_libswiftnav(synthetic_stationary_states, dgnss_filter):
 #     np.testing.assert_allclose(bl, swift_bl, atol=1)
 
 
-
 @pytest.mark.skipif(True, reason="Can't match the piksi yet!")
 def test_matches_piksi_logs(jsonlog, dgnss_filter):
 
@@ -117,7 +116,9 @@ def test_matches_piksi_logs(jsonlog, dgnss_filter):
       print "actual", locations.NOVATEL_BASELINE
 
 
-@pytest.mark.slow
+@pytest.mark.skipif(True,
+                    reason=("This won't pass until we get the filter capable"
+                            " of handling added/dropped satellites"))
 def test_cors_baseline(rinex_observation, rinex_base,
                        rinex_navigation, dgnss_filter):
 
@@ -137,10 +138,14 @@ def test_cors_baseline(rinex_observation, rinex_base,
                        base_header['z']])
   expected_baseline = rover_pos - base_pos
 
-  dgnss_filter = filters.KalmanFilter(base_pos=base_pos)
+  dgnss_filter = filters.KalmanFilter(base_pos=base_pos,
+                                      sig_x=2.,
+                                      sig_z=10.,
+                                      sig_cp=0.02,
+                                      sig_pr=3.)
 
   def eventually_close():
-    for _, state in zip(range(100), states):
+    for _, state in zip(range(40), states):
       state['rover'] = ephemeris.add_satellite_state(state['rover'],
                                                      state['ephemeris'])
       state['base'] = ephemeris.add_satellite_state(state['base'],

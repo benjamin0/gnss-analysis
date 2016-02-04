@@ -48,7 +48,6 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
-    self.cur_time = common.get_unique_value(rover_obs['time'])
     self.sids = rover_obs.index.intersection(base_obs.index)
     amb = pd.Series(np.zeros(self.sids.size - 1), index=self.sids[1:])
     pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
@@ -60,6 +59,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     self.initialized = True
 
   def get_baseline(self, state):
+
     assert self.cur_time == common.get_unique_value(state['rover']['time'])
     if not self.initialized:
       return None
@@ -150,6 +150,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
 
+    self.cur_time = common.get_unique_value(rover_obs['time'])
     logging.warn("Ignoring any rising/setting satellites")
     base_obs = base_obs.ix[self.sids]
     rover_obs = rover_obs.ix[self.sids]
