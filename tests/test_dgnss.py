@@ -7,7 +7,7 @@ from pandas.util.testing import assert_frame_equal
 from swiftnav import dgnss_management
 
 from gnss_analysis import constants as c
-from gnss_analysis import dgnss, ephemeris, synthetic, locations
+from gnss_analysis import dgnss, ephemeris, synthetic, locations, propagate
 
 
 def test_single_difference(synthetic_state):
@@ -16,10 +16,8 @@ def test_single_difference(synthetic_state):
   (which should be checked by test_make_propagated_single_differences)
   and instead focuses on testing edge cases (dropped satellites etc.)
   """
-  base_obs = ephemeris.add_satellite_state(synthetic_state['base'],
-                                            account_for_sat_error=False)
-  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'],
-                                            account_for_sat_error=False)
+  base_obs = ephemeris.add_satellite_state(synthetic_state['base'])
+  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'])
   # Compute the full set of single differences.
   expected_diffs = dgnss.single_difference(rover_obs, base_obs)
 
@@ -56,31 +54,36 @@ def test_make_propagated_single_differences(ephemerides):
 
   # create a set of base observations
   base_toa = ephemerides['toe'].values[0] + np.timedelta64(100, 's')
-  base_obs = synthetic.observations_from_toa(ephemerides,
-                                             base_ecef, base_toa)
-
-  omega_unit_vect = dgnss.omega_dot_unit_vector(base_ecef, base_obs,
-                                                expected_baseline)
-  # the single differences should equal the baseline dotted with the unit vectors
-  expected_sdiffs = np.dot(omega_unit_vect, expected_baseline)
+  base_obs = synthetic.observation(ephemerides,
+                                   base_ecef, base_toa)
+  base_obs = ephemeris.add_satellite_state(base_obs, ephemerides)
   # now compute the single difference between base and rover observations when
   # the base observation needs to be propagated forward in time (up to 10
   # seconds).
   for i in range(10):
     toa = base_toa + np.timedelta64(i, 's')
-    rover_obs = synthetic.observations_from_toa(ephemerides,
-                                                rover_ecef, toa)
-
+    rover_obs = synthetic.observation(ephemerides,
+                                      rover_ecef, toa)
+    rover_obs = ephemeris.add_satellite_state(rover_obs, ephemerides)
+    # propagate the base observations in order to get the unit vectors,
+    # and in turn the expected single differences
+    prop_base = propagate.delta_tof_propagate(base_ecef, base_obs.copy(),
+                                              new_toa=toa)
+    omega_unit_vect = dgnss.omega_dot_unit_vector(base_ecef, prop_base,
+                                                  expected_baseline)
+    # the single differences should equal the baseline dotted with the unit vectors
+    expected_sdiffs = np.dot(omega_unit_vect, expected_baseline)
+    # Now use the make_propagagted_single_differences method.
     sdiffs = dgnss.make_propagated_single_differences(rover_obs,
                                                       base_obs,
                                                       base_pos_ecef=base_ecef)
-    # TODO: Using datetime64 objects with nanosecond resolution means
-    # that we can only get +/- 0.3m accuracy on ranges!  Oops!  We'll need to
-    # change the way times are represented, perhaps rolling back to using
-    # wn, tow
+    # single differences agree to less than a millimeter.
     np.testing.assert_allclose(sdiffs['pseudorange'].values,
                                expected_sdiffs,
-                               atol=6e-1)
+                               atol=1e-3)
+    np.testing.assert_allclose(sdiffs['carrier_phase'] * c.GPS_L1_LAMBDA,
+                               expected_sdiffs,
+                               atol=1e-3)
 
 
 def test_matches_make_measurements(synthetic_state):
@@ -89,10 +92,8 @@ def test_matches_make_measurements(synthetic_state):
   from swiftnav.dgnss_management.make_measurements_
   """
   # make a set of single differences
-  base_obs = ephemeris.add_satellite_state(synthetic_state['base'],
-                                           account_for_sat_error=False)
-  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'],
-                                           account_for_sat_error=False)
+  base_obs = ephemeris.add_satellite_state(synthetic_state['base'])
+  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'])
   base_ecef = synthetic_state['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
   sdiffs = dgnss.make_propagated_single_differences(rover_obs,
                                                     base_obs,
@@ -122,10 +123,12 @@ def test_double_differences(ephemerides):
 
   # create a set of base observations
   toa = ephemerides['toe'].values[0] + np.timedelta64(100, 's')
-  base_obs = synthetic.observations_from_toa(ephemerides,
-                                             base_ecef, toa)
-  rover_obs = synthetic.observations_from_toa(ephemerides,
-                                              rover_ecef, toa)
+  base_obs = synthetic.observation(ephemerides,
+                                   base_ecef, toa)
+  base_obs = ephemeris.add_satellite_state(base_obs, ephemerides)
+  rover_obs = synthetic.observation(ephemerides,
+                                    rover_ecef, toa)
+  rover_obs = ephemeris.add_satellite_state(rover_obs, ephemerides)
   omega_unit_vect = dgnss.omega_dot_unit_vector(base_ecef, base_obs,
                                                 expected_baseline)
   # compute a matrix of unit vector differences between the reference
@@ -139,10 +142,8 @@ def test_double_differences(ephemerides):
                                                     base_obs,
                                                     base_pos_ecef=base_ecef)
   ddiffs = dgnss.double_difference(sdiffs)
-  # Because synthetic observations are made with time units that only have
-  # nanosecond resolution we can't get better than +/-0.3 m resolution
-  # on ranges, in turn these are only accurate to 6e-1.
+  # double differences agree to less than a 10th of millimeter
   np.testing.assert_allclose(ddiffs['pseudorange'].values,
-                             expected_ddiffs, atol=6e-1)
+                             expected_ddiffs, atol=1e-4)
   np.testing.assert_allclose(ddiffs['carrier_phase'].values * c.GPS_L1_LAMBDA,
-                             expected_ddiffs, atol=6e-1)
+                             expected_ddiffs, atol=1e-4)

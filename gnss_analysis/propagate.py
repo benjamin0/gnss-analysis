@@ -35,22 +35,23 @@ def line_of_sight_distance(sat, position_ecef, tof):
   return np.linalg.norm(los_pos - position_ecef, axis=1)
 
 
-def resolve_toa_tot(sat, new_toa, new_tot, position_ecef):
-  if new_tot is None and new_toa is None:
-    raise ValueError("Expected either new_toa or new_tot")
-  if new_tot is not None and new_toa is not None:
-    raise ValueError("Expected either new_toa or new_tot (but got both)")
+def resolve_times(sat, position_ecef, toa=None, tot=None):
+  if ((tot is None and toa is None) or
+      (tot is not None and toa is not None)):
+    raise ValueError("Expected either toa or tot (but got both)")
 
-  if new_tot is None and new_toa is not None:
-    # if new_toa was provided, we back solve for the new time of transmit
-    new_tot = ephemeris.time_of_transmission(sat, new_toa, position_ecef)
-  elif new_toa is None and new_tot is not None:
-    # if new_tot was provicded we forward solve for the new time of arrival
-    new_toa = ephemeris.time_of_arrival(sat, new_tot, position_ecef)
+  if tot is None:
+    # if toa was provided, we back solve for the new time of flight
+    tof = ephemeris.time_of_flight_from_toa(sat, toa, position_ecef)
+    tot = toa - time_utils.timedelta_from_seconds(tof)
+  elif toa is None:
+    # if tot was provicded we forward solve for the new time of flight
+    tof = ephemeris.time_of_flight_from_tot(sat, tot, position_ecef)
+    toa = tot + time_utils.timedelta_from_seconds(tof)
   else:
     raise ValueError("Expected either new_toa or new_tot but not both")
 
-  return new_toa, new_tot
+  return toa, tot, tof
 
 
 def doppler_propagate(position_ecef, satellite,
@@ -68,8 +69,8 @@ def doppler_propagate(position_ecef, satellite,
   # copy so we don't overwrite
   sat = satellite.copy()
   # determine the new time of arrival and transmission.
-  new_toa, new_tot = resolve_toa_tot(sat, new_toa, new_tot, position_ecef)
-  # How
+  new_toa, new_tot, new_tof = resolve_times(sat, position_ecef, new_toa, new_tot)
+  # delta_t is the difference between the new and current time of arrival.
   delta_t = time_utils.seconds_from_timedelta(new_toa - sat['time'])
   # the change in carrier phase is simply the time difference times doppler
   sat['carrier_phase'] += delta_t * sat['doppler']
@@ -80,6 +81,7 @@ def doppler_propagate(position_ecef, satellite,
   sat['pseudorange'] += delta_dist
   sat['time'] = new_toa
   sat['tot'] = new_tot
+  sat['tof'] = new_tof
   return sat
 
 
@@ -109,28 +111,25 @@ def delta_tof_propagate(position_ecef, satellite, new_toa=None, new_tot=None):
   # copy so we don't overwrite
   sat = satellite.copy()
   # determine the new time of arrival and transmission.
-  new_toa, new_tot = resolve_toa_tot(sat, new_toa, new_tot, position_ecef)
+  new_toa, new_tot, new_tof = resolve_times(sat, position_ecef, new_toa, new_tot)
   # don't trust the TOT in sat since it may or may not include clock errors.
-  old_tot = ephemeris.time_of_transmission(sat, sat['time'], position_ecef)
-  old_tof = time_utils.seconds_from_timedelta(sat['time'] - old_tot)
-
-  # Compute the new time of flight.  Since we are possibly subtract two
-  # very small times, we first convert them to float seconds rather
-  # than dealing with timedelta objects which cap out at nano seconds.
-  new_tof = time_utils.seconds_from_timedelta(new_toa - new_tot)
+  old_tof = ephemeris.time_of_flight_from_toa(sat, sat['time'], position_ecef)
 
   # compute the change in physical distance between target and observation
   delta_dist = (new_tof - old_tof) * c.GPS_C
-
   # compute the new sat positions at time of transmit.
   new_sat_state = ephemeris.calc_sat_state(sat, new_tot)
+  delta_clock_error = new_sat_state['sat_clock_error'] - sat['sat_clock_error']
   sat.update(new_sat_state)
   # update the observations.
   sat['carrier_phase'] += delta_dist / c.GPS_L1_LAMBDA
   # the pseudorange gets pushed forward by delta distance
-  sat['raw_pseudorange'] += delta_dist
   sat['pseudorange'] += delta_dist
+  # the raw pseudorange changes the same as pseudorange, but also
+  # includes clock errors that need to be accounted for
+  sat['raw_pseudorange'] += delta_dist - delta_clock_error * c.GPS_C
   sat['time'] = new_toa
   sat['tot'] = new_tot
+  sat['tof'] = new_tof
 
   return sat

@@ -136,25 +136,40 @@ def test_add_satellite_state(ephemerides):
   # compute the corresponding raw_pseudoranges according to the method used in
   # track.c:calc_navigation_measurements
   expected = ephemeris.calc_sat_state(ephemerides, tot)
+
   tof = time_utils.seconds_from_timedelta(ref_time - tot)
-  expected['raw_pseudorange'] = tof * c.GPS_C
+  expected['raw_pseudorange'] = (tof - expected.sat_clock_error) * c.GPS_C
   expected['raw_doppler'] = np.random.normal(100., 100., size=expected.shape[0])
   expected['tot'] = tot
-  expected['pseudorange'] = expected['raw_pseudorange'] + expected.sat_clock_error * c.GPS_C
-  expected['doppler'] = expected['raw_doppler'] + expected.sat_clock_error_rate * c.GPS_L1_HZ
+  expected['pseudorange'] = expected['raw_pseudorange'].copy()
+  expected['pseudorange'] += expected.sat_clock_error * c.GPS_C
+  expected['doppler'] = expected['raw_doppler'].copy()
+  expected['doppler'] += expected.sat_clock_error_rate * c.GPS_L1_HZ
+
+  expect_copy = expected.copy()
 
   def equals_expected(to_test):
     _, to_test = expected.align(to_test, 'left')
     for (k, x), (_, y) in zip(expected.iteritems(),
                               to_test.iteritems()):
-      if not np.all(x == y):
-        return False
+      diff = x - y
+      # diff is a time delta
+      if diff.dtype.kind == 'm':
+        if np.any(np.abs(diff) > np.timedelta64(1, 'ns')):
+          print "value for %s don't agree" % k
+          return False
+      else:
+        # otherwise for float value we look for values
+        # that agree up to 5 decimals.
+        if np.any(np.abs(diff) > 1e-5):
+          print "value for %s don't agree" % k
+          return False
     return True
 
   orig = ephemerides.copy()
-  orig['raw_pseudorange'] = expected['raw_pseudorange']
-  orig['raw_doppler'] = expected['raw_doppler']
-  orig['time'] = ref_time
+  orig['raw_pseudorange'] = expected['raw_pseudorange'].copy()
+  orig['raw_doppler'] = expected['raw_doppler'].copy()
+  orig['time'] = ref_time.copy()
 
   actual = ephemeris.add_satellite_state(orig)
   assert equals_expected(actual)
@@ -162,6 +177,11 @@ def test_add_satellite_state(ephemerides):
   # try with ephemerides passed in seperate
   actual = ephemeris.add_satellite_state(orig, ephemerides)
   equals_expected(actual)
+
+  # make sure it's idempotent
+  once = ephemeris.add_satellite_state(orig, ephemerides)
+  twice = ephemeris.add_satellite_state(once)
+  assert equals_expected(twice)
 
   bad_ephemerides = orig.copy()
   bad_ephemerides['af0'] += 10
@@ -171,52 +191,40 @@ def test_add_satellite_state(ephemerides):
   good = ephemeris.add_satellite_state(bad_ephemerides, ephemerides)
   assert equals_expected(good)
 
-  # make sure it's idempotent
-  another = ephemeris.add_satellite_state(actual)
-  assert equals_expected(another)
-
-  # make sure we can modify an object it it won't change the original
-  another['time'] += time_utils.timedelta_from_seconds(5)
-  assert equals_expected(actual)
 
 
-def test_time_of_transmission_vectorization(ephemerides):
+def test_time_of_flight(ephemerides):
   """
-  Tests to make sure that the vectorized version matches
-  the output if you pipe individual satellites through to
-  ensure there aren't strange vectorization issues.
+  Tests to make sure that the time of flight functions work
+  including testing the vectorization.
   """
-  ref_time = ephemerides.iloc[0]['time'].to_datetime64()
-  ref_time += time_utils.timedelta_from_seconds(40)
-  ref_loc = locations.NOVATEL_ABSOLUTE
 
-  # a pretty straight forward consistency check that makes sure
-  # vectorized solves are the same as individual solves.
-  full = ephemeris.time_of_transmission(ephemerides, ref_time, ref_loc)
-  for i in range(full.shape[0]):
-    single = ephemeris.time_of_transmission(ephemerides.iloc[[i]],
-                                            ref_time, ref_loc)
-    assert full[i] == single[0]
+  for tof_func in [ephemeris.time_of_flight_from_tot,
+                   ephemeris.time_of_flight_from_toa]:
 
-  # make sure the default iterations is basically
-  # the same as after 10
-  ten = ephemeris.time_of_transmission(ephemerides,
-                                       ref_time,
-                                       ref_loc,
-                                       max_iterations=10,
-                                       tol=1e-12)
-  t_diff = time_utils.seconds_from_timedelta(ten - full)
-  assert np.all(np.abs(t_diff) <= 1e-9)
+    ref_time = ephemerides.iloc[0]['time'].to_datetime64()
+    ref_time += time_utils.timedelta_from_seconds(40)
+    ref_loc = locations.NOVATEL_ABSOLUTE
 
-  # make sure the algorithm converged and is less than
-  # the convergence tolerance
-  nine = ephemeris.time_of_transmission(ephemerides,
-                                        ref_time,
-                                        ref_loc,
-                                        max_iterations=9,
-                                        tol=0)
-  t_diff = time_utils.seconds_from_timedelta(nine - ten)
-  np.all(np.abs(t_diff) < 1e-12)
+    # a pretty straight forward consistency check that makes sure
+    # vectorized solves are the same as individual solves.
+    full = tof_func(ephemerides, ref_time, ref_loc)
+    for i in range(full.shape[0]):
+      single = tof_func(ephemerides.iloc[[i]],
+                        ref_time, ref_loc)
+      assert full[i] == single[0]
+
+    # make sure the default iterations is basically
+    # the same as after 10
+    ten = tof_func(ephemerides, ref_time, ref_loc,
+                   max_iterations=10, tol=1e-12)
+    np.testing.assert_allclose(ten, full, atol=1e-9)
+
+    # make sure the algorithm converged and is less than
+    # the convergence tolerance
+    nine = tof_func(ephemerides, ref_time, ref_loc,
+                    max_iterations=9, tol=0)
+    np.testing.assert_allclose(ten, nine, atol=1e-12)
 
 
 def test_time_of_roundtrip(ephemerides):
@@ -233,13 +241,15 @@ def test_time_of_roundtrip(ephemerides):
 
   # compute the time of arrival for a signal leaving at transmission time from
   # the satellites and arriving at ref_loc.
-  toa = ephemeris.time_of_arrival(ephemerides, tot, ref_loc)
+  tot_tof = ephemeris.time_of_flight_from_tot(ephemerides, tot, ref_loc)
+  toa = tot + time_utils.timedelta_from_seconds(tot_tof)
   # now run time_of_transmission and make sure we get the original back.
-  actual_tot = ephemeris.time_of_transmission(ephemerides,
-                                              time_of_arrival=toa,
-                                              ref_loc=ref_loc)
-  tdiffs = time_utils.seconds_from_timedelta(tot.values - actual_tot.values)
-  assert np.all(np.abs(tdiffs) < 1e-12)
+  toa_tof = ephemeris.time_of_flight_from_toa(ephemerides,
+                                               toa=toa,
+                                               ref_loc=ref_loc)
+  roundtrip_tot = toa - time_utils.timedelta_from_seconds(toa_tof)
+  error_seconds = time_utils.seconds_from_timedelta(roundtrip_tot - tot)
+  assert np.all(error_seconds == 0.)
 
 
 def test_sat_velocity(ephemerides):

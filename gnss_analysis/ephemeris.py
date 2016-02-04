@@ -59,6 +59,9 @@ def sagnac_rotation(sat_pos, time_of_flight):
   # make sure there are three and only three columns (x, y, z)
   assert sat_pos.shape[1] == 3
   assert time_of_flight.dtype.kind == 'm'
+  # if the time of flight is zero we don't need to rotate
+  if np.all(time_of_flight == np.timedelta64(0, 'ns')):
+    return sat_pos
   # on the way the earth rotates omega degress, so we adjust the
   # satellites positions.  The resulting position (sat_pos_rot) is the ecef
   # coordinate of where it would have appeared the signal had been
@@ -73,22 +76,23 @@ def sagnac_rotation(sat_pos, time_of_flight):
   return sat_pos_rot
 
 
-def time_of_transmission(eph, time_of_arrival, ref_loc,
-                         max_iterations=2, tol=1e-12):
+def time_of_flight_from_toa(eph, toa, ref_loc,
+                            max_iterations=2, tol=1e-12):
   """
-  Computes the time of transmission given a set of ephemeris data, a reference
-  location and a time.  This requires an iterative process in which
+  Computes the time of flight given a set of ephemeris data, a reference
+  location and a time of arrival.  This requires an iterative process in which
   an approximate distance is computed from a first satellite position at
-  arrival time.  An approximate time of transmission is then computed
+  arrival time.  An approximate time of flight is then computed
   which gives a more accurate satellite position that can be used to
-  improve the time of transmission estimate.
+  improve the estimate.
   
   Parameters
   ----------
   eph : pd.DataFrame
     A DataFrame holding ephemeris parameters.
-  time_of_arrival : datetime64
-    Represents the time when a transmission was received at ref_loc.
+  toa : datetime64
+    The time of arrival which represents the time when a transmission
+    was received at ref_loc.
   ref_loc : array-like
     An array like holding the ECEF coordinates of a reference location
   max_iterations : int (optional)
@@ -101,15 +105,15 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
 
   Returns
   -------
-  tot : pd.DataFrame
-    A data frame holding the week number and time of week that represent
+  tof : float
+    A float, float array or float  the week number and time of week that represent
     the time of transmission.
   """
   # start with the time of transmission the same as the time of arrival
-  tot = time_of_arrival
+  tot = toa
   # Note that just one iteration is typically enough to get within mm
   # precision which should be sufficient.
-  old_tot = tot
+  old_tof = 0.
   for i in range(max_iterations):
     # compute the time of flight using the current best guess at
     # time of transmission
@@ -121,24 +125,24 @@ def time_of_transmission(eph, time_of_arrival, ref_loc,
     sat_pos = sagnac_rotation(sat_pos, tof)
     dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
     # use the resulting distance to update our guess of the
-    # time of transmission.
-    correction = time_utils.timedelta_from_seconds(dists / c.GPS_C)
-    tot = time_of_arrival - correction
-    if np.all(np.abs(time_utils.seconds_from_timedelta(tot - old_tot))) < tol:
+    # time of flight.
+    tof = dists / c.GPS_C
+    tot = toa - time_utils.timedelta_from_seconds(tof)
+    if np.all(np.abs(tof - old_tof)) < tol:
       break
-    old_tot = tot
-  return tot
+    old_tof = tof
+  return tof
 
 
-def time_of_arrival(eph, tot, ref_loc,
-                    max_iterations=1, tol=1e-12):
+def time_of_flight_from_tot(eph, tot, ref_loc,
+                            max_iterations=2, tol=1e-12):
   """
-  Computes the time of arrival of a signal sent at some transmission
+  Computes the time of flight of a signal sent at some transmission
   time given a set of ephemeris data, a reference
   location.  This requires an iterative process in which
   an approximate distance is computed from a first guess at arrival time.
-  The earth is the rotated according to corresponding time of flight
-  and the time of arrival is updated.
+  The earth is the rotated according to corresponding time of flight,
+  which is then updated.
   
   Parameters
   ----------
@@ -158,33 +162,31 @@ def time_of_arrival(eph, tot, ref_loc,
 
   Returns
   -------
-  toa : pd.DataFrame
-    A data frame holding the week number and time of week that represent
-    the time of arrival.
+  tof : float
+    A float, array of floats, or DataFrame holding the time of flight
+    in units of seconds.
   """
-  old_toa = tot
   # compute the satellite state at time of transmission
   sat_state = calc_sat_state(eph, tot)
   sat_pos = sat_state[['sat_x', 'sat_y', 'sat_z']].values
-  dists = np.linalg.norm(sat_pos - ref_loc, axis=1)
+  tof = 0.
+  old_tof = 0.
   # Note that just one iteration is typically enough to get within mm
   # precision which should be sufficient.  In fact, this should converge
   # significantly faster than time_of_transmission which requires
   # iteratively updating the satellite_state.
   for i in range(max_iterations):
     # current guess at time of flight
-    tof = time_utils.timedelta_from_seconds(dists / c.GPS_C)
     # corresponding earth rotation
-    los_pos = sagnac_rotation(sat_pos, tof)
+    los_pos = sagnac_rotation(sat_pos, time_utils.timedelta_from_seconds(tof))
     # new time of arrival
     dists = np.linalg.norm(los_pos - ref_loc, axis=1)
-    correction = time_utils.timedelta_from_seconds(dists / c.GPS_C)
-    toa = tot + correction
+    tof = dists / c.GPS_C
     # check for convergence
-    if np.all(np.abs(time_utils.seconds_from_timedelta(toa - old_toa))) < tol:
+    if np.all(np.abs(tof - old_tof)) < tol:
       break
-    old_toa = toa
-  return toa
+    old_tof = tof
+  return tof
 
 
 def _eccentric_anomaly_from_mean_anomaly(ma, ecc):
@@ -383,7 +385,7 @@ def maybe_convert_time(obs):
   return obs
 
 
-def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
+def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
   """
   Compute the satellite state for a set of observations and
   add any corrections to the observation data.  This function
@@ -408,16 +410,21 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
     precomputed satellite state (from calc_sat_state) or
     None (in which case such information is expected to
     be held in obs).
+  account_for_sat_error: boolean
+    A flag which indicates that the raw_pseudoranges should
+    be assumed to contain satellite clock error.  The default
+    is True, since this agrees with RINEX specifications.
     
   Returns
   -------
   obs : pd.DataFrame
     A DataFrame with the same index as obs, but with satellite
-    state and corrected observations.
+    state and corrected observations.  The returned object is
+    NOT a copy, so modifying (some) variables here may modify
+    the original.
     
   See Also: libswiftnav/track.c::calc_nav_measurements
   """
-  assert obs.index.name == 'sid'
   assert 'raw_pseudorange' in obs
 
   obs = maybe_convert_time(obs)
@@ -427,6 +434,7 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
     # either ephemerides or satellite state
     assert 'af0' in obs or has_sat_state(obs)
   else:
+    assert obs.index.name == 'sid'
     assert ephemerides.index.name == 'sid'
     # combine the base observations with available ephemeris
     if 'time' in ephemerides and 'time' in obs:
@@ -436,16 +444,16 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
     obs = _update_columns(obs, ephemerides)
 
   # this is the apparent time of flight, not the actual (physical) one
-  tof = time_utils.timedelta_from_seconds(obs['raw_pseudorange'] / c.GPS_C)
-  # time of transmission is the epoch time minus the time of flight.
-  obs['tot'] = obs['time'].values - tof
-
+  tof = obs['raw_pseudorange'] / c.GPS_C
+  obs['tof'] = tof
   # it is sometimes helpful to precompute satellite state all
   # at once, then pass it through the some other set of functions
   # that can't assume the state has been precomputed.
   # Here we check if the state was already added, and if so
   # skip the expensive calc_sat_state computation.
   if not has_sat_state(obs):
+    # time of transmission is the epoch time minus the time of flight.
+    obs['tot'] = obs['time'].values - time_utils.timedelta_from_seconds(tof)
     sat_state = calc_sat_state(obs, obs['tot'])
     # Here we optionally adjust the satellite state to account for
     # satellite clock error.  In otherwords, the satellites all transmit
@@ -454,8 +462,11 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=False):
     # a second, during which time the satellite position can change
     # significantly.
     if account_for_sat_error:
-      sat_error = time_utils.timedelta_from_seconds(sat_state['sat_clock_error'])
-      obs['tot'] -= sat_error
+      sat_error = sat_state['sat_clock_error']
+      # TODO: perhaps it's not worth keeping track of tof since it's
+      #   redundant given pseudorange?
+      obs['tof'] += sat_error
+      obs['tot'] -= time_utils.timedelta_from_seconds(sat_error)
       sat_state = calc_sat_state(obs, obs['tot'])
     obs = _update_columns(obs, sat_state)
 

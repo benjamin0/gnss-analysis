@@ -134,7 +134,7 @@ def observation_to_dataframe(msg, data):
       v = {'raw_pseudorange': obs.P / c.CM_TO_M,
            'carrier_phase': obs.L.i + obs.L.f / c.Q32_WIDTH,
            'cn0': obs.cn0,
-           'lock': obs.lock,
+           'lock_count': obs.lock,
            'host_time': data['timestamp'],
            'host_offset': data['delta'],
            'time': time_utils.tow_to_datetime(wn=msg.header.t.wn,
@@ -225,7 +225,7 @@ def tdcp_doppler(old, new):
   # compute the rate of change of the carrier phase
   doppler = (new.carrier_phase - old.carrier_phase) / dt
   # mark any computations with differing locks as nan
-  invalid = np.mod(new['carrier_phase_LLI'], 2) == 1
+  invalid = np.mod(new['lock'], 2) == 1
   doppler[invalid] = np.nan
   return doppler
 
@@ -285,7 +285,8 @@ def update_observation(state, msg, data):
   # align the previous observations to match the new_obs index.
   new_obs, prev_obs = new_obs.align(prev_obs, 'left')
   # update the doppler information.
-  new_obs['carrier_phase_LLI'] = (new_obs['lock'] != prev_obs['lock']).astype('int')
+  lock_changed = (new_obs['lock_count'] != prev_obs['lock_count']).astype('int')
+  new_obs['lock'] = lock_changed
   new_obs['raw_doppler'] = tdcp_doppler(prev_obs, new_obs)
   # the actual doppler is the raw_doppler + clock_rate_err * GPS_L1_HZ
   # but since we don't know the clock_rate_err yet we leave that for later.

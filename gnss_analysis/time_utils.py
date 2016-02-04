@@ -5,11 +5,50 @@ from gnss_analysis import constants as c
 
 
 def timedelta_from_seconds(seconds):
+  """
+  Converts from floating point number of seconds to a np.timedelta64.
+  The number of seconds will be rounded to the nearest nanosecond.
+
+  Note that nanosecond precision is not sufficient for some GPS
+  applications.  For example, computing a range from time of
+  flight with nanosecond precision would result in +/- 30 cm of
+  error which is likely unsatisfactory.
+
+  Parameters
+  ----------
+  sec : float
+    A floating point representation of the number of seconds
+
+  Returns
+  -----------
+  td : np.timedelta64
+    A timedelta64[ns] object (or array like of them)
+  """
   seconds = np.array(seconds)
-  return (seconds * 1e9).astype('timedelta64[ns]')
+  return np.round(seconds * 1e9).astype('timedelta64[ns]')
 
 
 def seconds_from_timedelta(td):
+  """
+  Converts a np.timedelta64 object into a float number of seconds.
+  The resulting number of seconds will be accurate to nanoseconds.
+
+  Note that nanosecond precision is not sufficient for some GPS
+  applications.  For example, computing a range from time of
+  flight with nanosecond precision would result in +/- 30 cm of
+  error which is likely unsatisfactory.
+
+  Parameters
+  ----------
+  td : np.timedelta64
+    A timedelta64 object (or array like of them)
+
+  Returns
+  -----------
+  sec : float
+    The floating point representation of the number of seconds
+    in the time delta.
+  """
   # make sure td is a np.timdelta64 object
   assert td.dtype.kind == 'm'
   if not td.dtype == '<m8[ns]':
@@ -40,8 +79,14 @@ def seconds_from_timedelta(td):
   #   array([ True,  True], dtype=bool)
   #   tmp.values == np.timedelta64('NaT')
   #   False
+
+  # As shown above comparison only works if tmp is
+  # a numpy array, this will convert things like pandas
+  # Series to numpy arrays
   td = np.asarray(td)
+  # now do the NaT comparison
   is_nat = td == np.timedelta64('NaT', 'ns')
+  # and fill in the NaT values with NaN values.
   if td.size == 1 and is_nat:
     seconds = np.nan
   elif np.any(is_nat):
@@ -66,7 +111,7 @@ def gpst_to_utc(gpst, delta_utc):
     messages.  Note that if converting an array of times, the
     delta may be different for each.  Take care you pass in the
     correct values as validity cannot be checked.  
-    
+
   Returns
   -------
   utc : np.datetime64
@@ -86,7 +131,10 @@ def tow_to_datetime(wn, tow):
   """
   Converts a time using week number and time of week representation
   into a python datetime object.  Note that this does NOT convert
-  into UTC.  The resulting datetime object is still in GPS time.
+  into UTC.  The resulting datetime object is still in GPS time
+  and will have been rounded to nanosecond precision (which is
+  too coarse to accurately compute timedeltas such as time of
+  flight.
   
   Parameters
   -----------
@@ -101,7 +149,7 @@ def tow_to_datetime(wn, tow):
   utc : np.datetime64
     Returns a np.datetime64 object (or an array of them) that holds
     the UTC representation of the corresponding gpst.
-    
+
   See also: gpst_to_utc, datetime_to_tow
   """
   seconds = np.array(c.WEEK_SECS * wn + tow)
@@ -118,20 +166,20 @@ def datetime_to_tow(dt):
   NOTE: This does NOT convert between utc and gps time.  The result
   will still be in gps time (so will be off by some number of
   leap seconds).
-  
+
   Parameters
   ----------
   dt : np.datetime64, pd.Timestamp, datetime.datetime
     A datetime object (possibly an array) that is convertable to
     datetime64 objects using pd.to_datetime (see the pandas docs
     for more details).
-    
+
   Returns
   --------
   wn_tow : dict
     Dictionary with attributes 'wn' and 'tow' corresponding to the
     week number and time of week.
-    
+
   See also: tow_to_datetime
   """
   dt = pd.to_datetime(dt)
@@ -154,7 +202,7 @@ def utc_to_gpst(utc, delta_utc):
   """
   Converts from times in utc to the corresponding gps time in
   week number, time of week format.
-  
+
   Parameters
   ----------
   utc : np.datetime64, pd.Timestamp, datetime.datetime
@@ -169,69 +217,15 @@ def utc_to_gpst(utc, delta_utc):
     messages.  Note that if converting an array of times, the
     delta may be different for each.  Take care you pass in the
     correct values as validity cannot be checked.
-  
+
   Returns
   -------
   gpst : dict
     A dictionary with attributes 'wn' and 'tow' holding the
     week number and time of week that correspond to the input utc times.
-    
+
   See also: datetime_to_tow, gpst_to_utc
   """
   utc = pd.to_datetime(utc)
   delta_utc = np.array(delta_utc)
   return datetime_to_tow(utc - (delta_utc * 1e9).astype('timedelta64[ns]'))
-
-
-def diff_time(end, start):
-  """
-  Returns the time difference in seconds between two times
-  stored in week number and time of week representations.
-  
-    time difference (seconds) = end - start
-  
-  Parameters
-  ----------
-  end : dict-like
-    A dictionary like object which must have keys 'wn' and 'tow'
-    corresponding to the week number and time of week.
-  start : dict-like
-    A dictionary like object which must have keys 'wn' and 'tow'
-    corresponding to the week number and time of week.
-  
-  Returns
-  -------
-  time_difference : float
-    The number of seconds between end and start.
-  """
-  assert 'wn' in end
-  assert 'tow' in end
-  assert 'wn' in start
-  assert 'tow' in start
-  return end['tow'] - start['tow'] + (end['wn'] - start['wn']) * c.WEEK_SECS
-
-
-def get_unique_time(obs):
-  """
-  Extracts the unique time of week (tow) and week number (wn) pairs
-  from a set of observations.  The resulting time should correspond
-  to the timeof arrival of the variables in `obs`.
-  
-  Parameters
-  ----------
-  obs : pd.DataFrame
-    A DataFrame which must contain variables 'tow' and 'wn'.
-  
-  Returns
-  -------
-  time : dict
-    A dictionary with keys 'wn' and 'tow' holding scalar values
-    which correspond to the unique values in obs.
-  """
-  # get the time of arrival for the base observations
-  tow = np.unique(obs['tow'].values)
-  # make sure the observations are all from a single time
-  assert tow.size == 1
-  wn = np.unique(obs.wn.values)
-  assert wn.size == 1
-  return {'wn': wn.item(), 'tow': tow.item()}

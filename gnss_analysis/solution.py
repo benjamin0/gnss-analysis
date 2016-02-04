@@ -34,7 +34,7 @@ def _create_navigation_measurement(obs):
                              doppler=obs.get('doppler', np.nan),
                              sat_pos=obs[['sat_x', 'sat_y', 'sat_z']],
                              sat_vel=obs[['sat_v_x', 'sat_v_y', 'sat_v_z']],
-                             snr=obs.cn0,
+                             snr=obs.signal_noise_ratio,
                              lock_time=lock_time,
                              tot=tot,
                              sid=sid,
@@ -255,4 +255,3 @@ def solution(states, dgnss_filter=None):
 
     # NOTE: only now are observations sent from the piksi
     yield state
-
