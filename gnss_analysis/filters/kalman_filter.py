@@ -151,9 +151,18 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
       self.initialize_filter(rover_obs, base_obs)
 
     self.cur_time = common.get_unique_value(rover_obs['time'])
-    logging.warn("Ignoring any rising/setting satellites")
+
+    if not np.all(self.sids.isin(base_obs.index)):
+      raise NotImplementedError("The base station lost a satellte, which"
+                                " isn't supported yet")
+    if not np.all(self.sids.isin(rover_obs.index)):
+      raise NotImplementedError("The rover lost a satellte, which"
+                                " isn't supported yet")
+
     base_obs = base_obs.ix[self.sids]
     rover_obs = rover_obs.ix[self.sids]
+
+
 
     n = self.x.size
     # the observation vector, linear operator and observation noise
