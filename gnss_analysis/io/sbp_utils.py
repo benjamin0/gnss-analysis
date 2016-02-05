@@ -51,22 +51,22 @@ def get_sid(msg):
     raise AttributeError("msg does not contain a satellite id")
 
 
-def update_gps_time(state, msg, data):
+def update_gps_time(obs, msg, data):
   tow = msg.tow / c.MSEC_TO_SECONDS + msg.ns * 1e-9
   time = pd.DataFrame({'wn': [msg.wn],
                        'tow': [tow]})
-  state['time'] = time
-  return state
+  obs['time'] = time
+  return obs
 
 
-def update_position(state, msg, data, suffix):
+def update_position(obs, msg, data, suffix):
   """
   Convert the position estimate to a DataFrame and update
-  the correct state field.
+  the correct obs field.
   """
-  state_field = '%s_%s' % (get_source(msg), suffix)
-  state[state_field] = position_to_dataframe(msg, data)
-  return state
+  field = '%s_%s' % (get_source(msg), suffix)
+  obs[field] = position_to_dataframe(msg, data)
+  return obs
 
 
 def position_to_dataframe(msg, data):
@@ -230,9 +230,9 @@ def tdcp_doppler(old, new):
   return doppler
 
 
-def update_ephemeris(state, msg, data):
+def update_ephemeris(obs, msg, data):
   """
-  Updates the current state with a new ephemeris message.
+  Updates the current obs with a new ephemeris message.
   An ephemeris message typically contains the
   ephemeris for a single satellite.  This new ephemeris
   information is added to the previous ephemerides,
@@ -240,30 +240,30 @@ def update_ephemeris(state, msg, data):
   """
   updates = ephemeris_to_dataframe(msg, data)
   if not (msg.valid and msg.healthy):
-    return state
-  prev_ephs = state['ephemeris']
-  # if no updates, return the original state
+    return obs
+  prev_ephs = obs['ephemeris']
+  # if no updates, return the original obs
   if updates is None:
-    return state
-  # if there is no previous state return the updates.
+    return obs
+  # if there is no previous obs return the updates.
   if prev_ephs.empty:
-    state['ephemeris'] = updates
-    return state
+    obs['ephemeris'] = updates
+    return obs
   # doing align upfront avoid's doing alignment twice
   updates, prev_ephs = updates.align(prev_ephs)
-  # pd.DataFrame.combine_first(updates, state) would
+  # pd.DataFrame.combine_first(updates, obs) would
   # work here as well, but it is extremely slow.  This
   # version is not nearly as robust but is an order
   # of magnitude faster.
   rows_to_overwrite = np.any(updates.isnull(), axis=1)
   updates.iloc[rows_to_overwrite, :] = prev_ephs.iloc[rows_to_overwrite, :]
-  state['ephemeris'] = updates
-  return state
+  obs['ephemeris'] = updates
+  return obs
 
 
-def update_observation(state, msg, data):
+def update_observation(obs_set, msg, data):
   """
-  Updates the current state with a new set of observations.
+  Updates the current obs with a new set of observations.
   An observation message typically contains information
   from multiple satellites.  When new observations are
   received the previous observations are simply thrown out,
@@ -271,11 +271,11 @@ def update_observation(state, msg, data):
   """
   new_obs = observation_to_dataframe(msg, data)
   if not new_obs.size:
-    return state
+    return obs_set
   # determine if the message was from the rover or base and
   # get the previous observations.
   source = get_source(msg)
-  prev_obs = state[source]
+  prev_obs = obs_set[source]
   if (logging.getLogger().getEffectiveLevel() == logging.DEBUG
       and not np.all(prev_obs.index == new_obs.index)):
     added = set(new_obs.index.values).difference(set(prev_obs.index.values))
@@ -290,8 +290,8 @@ def update_observation(state, msg, data):
   new_obs['raw_doppler'] = tdcp_doppler(prev_obs, new_obs)
   # the actual doppler is the raw_doppler + clock_rate_err * GPS_L1_HZ
   # but since we don't know the clock_rate_err yet we leave that for later.
-  state[source] = new_obs
-  return state
+  obs_set[source] = new_obs
+  return obs_set
 
 
 def is_rover_observation(msg):

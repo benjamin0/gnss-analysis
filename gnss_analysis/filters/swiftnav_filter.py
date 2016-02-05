@@ -54,7 +54,7 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     # update the ambiguities
     dgnss_management.dgnss_update_ambiguity_state_(self.amb_state)
 
-  def get_baseline(self, state):
+  def get_baseline(self, obs_set):
     """
     Uses the current filter state to estimate the baseline for
     a set of (possibly non-aligned) rover and base observations.
@@ -64,10 +64,10 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     """
     # Add the satellite state information (position etc ..)
     # to the rover observations.
-    state['base'] = ephemeris.add_satellite_state(state['base'],
-                                                  state['ephemeris'])
+    obs_set['base'] = ephemeris.add_satellite_state(obs_set['base'],
+                                                    obs_set['ephemeris'])
     # creates a DataFrame of single differences
-    sdiffs = self.get_single_diffs(state['rover'], state['base'],
+    sdiffs = self.get_single_diffs(obs_set['rover'], obs_set['base'],
                                    propagate_base=True)
     # converts the DataFrame to c objects
     sdiff_t = list(dgnss.create_single_difference_objects(sdiffs))

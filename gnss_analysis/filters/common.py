@@ -6,6 +6,10 @@ from gnss_analysis import dgnss, ephemeris, propagate, solution
 
 
 def get_unique_value(x):
+  """
+  Convenience function that tries to reduce x to a single
+  unique value.
+  """
   uniq = np.unique(x)
   assert uniq.size == 1
   return uniq[0]
@@ -75,10 +79,10 @@ class DGNSSFilter(object):
     self.prev_sdiffs = good_sdiffs
     return good_sdiffs
 
-  def update(self, state):
+  def update(self, obs_set):
     raise NotImplementedError
 
-  def get_baseline(self, state):
+  def get_baseline(self, obs_set):
     raise NotImplementedError
 
 
@@ -119,28 +123,28 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
     self.rover_buffer = self.rover_buffer[self.rover_buffer.time > t]
     return matched_obs
 
-  def _append_to_buffer(self, rover_state):
+  def _append_to_buffer(self, rover_obs):
     """
-    Adds a set of rover state observations to the buffer.
+    Adds a data frame of rover observations to the buffer.
     """
-    rover_toa = get_unique_value(rover_state['time'])
+    rover_toa = get_unique_value(rover_obs['time'])
     # make sure the current tow doesn't exist in the buffer yet,
     # tow needs to be unique since it's used to index.
     assert (self.rover_buffer.empty or
             not rover_toa in self.rover_buffer['time'])
     # update the DataFrame buffer
     self.rover_buffer = pd.concat([self.rover_buffer,
-                                   rover_state])
+                                   rover_obs])
 
-  def _validate_base_observation(self, state):
+  def _validate_base_observation(self, obs_set):
     # Check to see if we have a set of base observations.  Without
     # them we can't proceed.
-    if state.get('base', None) is None:
+    if obs_set.get('base', None) is None:
       logging.warn("No base observations found, not updating filter.")
       return False
 
     # get the time of arrival for the base observations
-    toa = get_unique_value(state['base']['time'])
+    toa = get_unique_value(obs_set['base']['time'])
 
     # make sure the the current base observations are newer than
     # anything we've seen before.  If not we skip this update.
@@ -150,29 +154,29 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
       return False
     return True
 
-  def update(self, state):
+  def update(self, obs_set):
     """
-    Updates the filter given the new state.
+    Updates the filter given the new observation set.
     """
-    # Always push the rover state to the buffer
-    self._append_to_buffer(state['rover'])
+    # Always push the rover observations to the buffer
+    self._append_to_buffer(obs_set['rover'])
 
-    # Make sure the state contains a new and valid base observation
-    if not self._validate_base_observation(state):
+    # Make sure the obs_set contains a new and valid base observation
+    if not self._validate_base_observation(obs_set):
       return
 
     # Store the current base as a reference for the next iteration
-    self.prev_base = state['base']
+    self.prev_base = obs_set['base']
     # Possibly update the base position using it's SPP.
-    self.maybe_update_base_position(state['base'])
+    self.maybe_update_base_position(obs_set['base'])
 
     # Infer any required variables and add satellite state.
-    state['rover'] = ephemeris.add_satellite_state(state['rover'],
-                                                   state['ephemeris'],
-                                                   account_for_sat_error=True)
+    obs_set['rover'] = ephemeris.add_satellite_state(obs_set['rover'],
+                                                     obs_set['ephemeris'],
+                                                     account_for_sat_error=True)
 
     # get the time of arrival for the base observations
-    toa = get_unique_value(state['base']['time'])
+    toa = get_unique_value(obs_set['base']['time'])
 
     # Attempt to find a rover observation that corresponds to the base
     # observation.
@@ -184,14 +188,14 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
 
     # this should be checked before calling this function, make sure
     assert not rover_obs.empty
-    assert not state['base'].empty
+    assert not obs_set['base'].empty
     assert rover_obs.shape[0] >= 4
-    assert state['base'].shape[0] >= 4
+    assert obs_set['base'].shape[0] >= 4
 
     # Add the satellite state information (position etc ..)
     # to the rover observations.
-    base_obs = ephemeris.add_satellite_state(state['base'],
-                                             state['ephemeris'],
+    base_obs = ephemeris.add_satellite_state(obs_set['base'],
+                                             obs_set['ephemeris'],
                                              account_for_sat_error=True)
 
     # We now have a pair of rover and base observations that correspond

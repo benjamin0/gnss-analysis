@@ -197,17 +197,17 @@ def piksi_like_observation(ephemerides, location_ecef, toa,
   return obs
 
 
-def synthetic_state(ephemerides, rover_ecef, base_ecef, toa):
+def synthetic_observation_set(ephemerides, rover_ecef, base_ecef, toa):
   """
   Creates a set of observations for both a rover and a base
-  station and stuffs it in a state dictionary similar to the
-  ones produced by simulate.simulate_from_log().
+  station and stuffs it in a observation set dictionary similar to the
+  ones produced by simulate.
   """
-  state = {'rover': observation(ephemerides,
-                                location_ecef=rover_ecef,
-                                toa=toa),
-           'base': observation(ephemerides,
-                               location_ecef=base_ecef,
-                               toa=toa),
-           'ephemeris': ephemerides}
-  return state
+  obs_set = {'rover': observation(ephemerides,
+                                  location_ecef=rover_ecef,
+                                  toa=toa),
+             'base': observation(ephemerides,
+                                 location_ecef=base_ecef,
+                                 toa=toa),
+             'ephemeris': ephemerides}
+  return obs_set

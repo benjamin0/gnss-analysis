@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
 
-from gnss_analysis import locations, filters, solution, simulate, ephemeris
+from gnss_analysis import locations, filters, solution, ephemeris
+from gnss_analysis.io import simulate
 from gnss_analysis.io import rinex
 
 
@@ -126,9 +127,9 @@ def test_cors_baseline(rinex_observation, rinex_base,
   cors short baseline to less than 1m accuracy within a reasonable
   amount of time.
   """
-  states = rinex.simulate_from_rinex(rinex_observation,
-                                     rinex_navigation,
-                                     rinex_base)
+  states = simulate.simulate_from_rinex(rinex_observation,
+                                        rinex_navigation,
+                                        rinex_base)
   rover_lines = rinex.iter_padded_lines(rinex_observation)
   rover_header = rinex.parse_header(rover_lines)
   base_lines = rinex.iter_padded_lines(rinex_base)

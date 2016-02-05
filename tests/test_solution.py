@@ -1,6 +1,7 @@
 import numpy as np
 
-from gnss_analysis import solution, ephemeris, simulate, time_utils
+from gnss_analysis import solution, ephemeris, time_utils
+from gnss_analysis.io import simulate
 
 
 def test_spp_consistent(synthetic_observations):

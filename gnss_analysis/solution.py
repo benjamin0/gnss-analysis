@@ -212,7 +212,7 @@ def single_point_position(obs, max_iterations=15, tol=1e-4):
           'converged': converged}
 
 
-def solution(states, dgnss_filter=None):
+def solution(obs_sets, dgnss_filter=None):
   """
   Mimics the solution_thread in piksi_firmware/solution.c, though the
   order is somewhat reversed since on the piksi the solve is made,
@@ -223,35 +223,35 @@ def solution(states, dgnss_filter=None):
   the equivalent thread on the piksi.
   """
 
-  for state in states:
+  for obs_set in obs_sets:
     # This is similar to creating naviation measurement objects,
     # here the actual units satellite clock error is
     # taken into account to convert raw_pseudorange to pseudorange.
-    state['rover'] = ephemeris.add_satellite_state(state['rover'],
-                                                   state['ephemeris'])
+    obs_set['rover'] = ephemeris.add_satellite_state(obs_set['rover'],
+                                                     obs_set['ephemeris'])
 
     # make sure we have enough satellites to compute a position
-    if not can_compute_position(state['rover']):
+    if not can_compute_position(obs_set['rover']):
       continue
 
     # The next step in piksi_firmware computes the doppler, but that has
     # already been done in the simulate module.
 
     # compute the single point position
-    state['rover_pos'] = single_point_position(state['rover'])
+    obs_set['rover_pos'] = single_point_position(obs_set['rover'])
 
     # TODO: WIP, plug in DGNSS filters here.
     # if a filter is present and we have enough base observations
     # to compute a position from them.
     if (dgnss_filter is not None and
-        can_compute_position(state['base'])):
-      state['base'] = ephemeris.add_satellite_state(state['base'],
-                                                    state['ephemeris'])
-      # Update the filter with the new state
-      dgnss_filter.update(state)
+        can_compute_position(obs_set['base'])):
+      obs_set['base'] = ephemeris.add_satellite_state(obs_set['base'],
+                                                      obs_set['ephemeris'])
+      # Update the filter with the new obs_set
+      dgnss_filter.update(obs_set)
       # TODO: if low-latency make propagated sdiffs
       # NOTE: at this point on the piksi baseline messages are output.
-      state['rover_pos']['baseline'] = dgnss_filter.get_baseline(state)
+      obs_set['rover_pos']['baseline'] = dgnss_filter.get_baseline(obs_set)
 
     # NOTE: only now are observations sent from the piksi
-    yield state
+    yield obs_set
