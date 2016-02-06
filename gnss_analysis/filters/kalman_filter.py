@@ -137,7 +137,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
                    " satellite.  This implies faulty logic elsewhere")
       return
 
-    logging.debug("Changing reference from %d to %d" % (cur_ref, new_ref))
+    logging.debug("Changing reference from %d to %d" % (int(cur_ref),
+                                                        int(new_ref)))
 
     # determine which index in x corresponds to the new reference
     new_ind = self.x.index.get_indexer([new_ref])
@@ -180,7 +181,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # it must be the reference satellite.  In which case we
     # must first change the reference.
     if not to_drop.isin(self.x.index):
-      self.change_reference_satellite(new_sids)
+      self.change_reference_satellite(new_sids=new_sids)
 
     # Iteratively drop satellites from the state and rows/cols from
     # the covariance matrix.
