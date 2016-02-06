@@ -21,7 +21,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
   differences.
   """
 
-  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02, sig_pr=3.,
+  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
+               sig_pr=3., sig_init=5e5,
                *args, **kwdargs):
     """
     Creates an instance of a KalmanFilter with the option of
@@ -44,8 +45,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     self.sig_z = sig_z
     self.sig_cp = sig_cp
     self.sig_pr = sig_pr
-    # This sets our first guess to be within ~1000 km of the base station
-    self.sig_init = 5e5
+    # The defualt sets our first guess to be within ~1000 km of the base
+    self.sig_init = sig_init
     self.initialized = False
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
@@ -58,7 +59,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     assert not self.initialized
     self.active_sids = rover_obs.index.intersection(base_obs.index)
     # A series containing the n, e and d components of the baseline (in meters)
-    pos = pd.Series(np.zeros(3), index=['n', 'e', 'd'])
+    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
     # sets the reference satellite to be the first in the active set and
     # creates the state vector of double differenced ambiguities.
     amb = pd.Series(np.zeros(self.active_sids.size - 1),
