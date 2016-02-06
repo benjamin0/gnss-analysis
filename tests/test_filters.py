@@ -12,6 +12,7 @@ def dgnss_filter():
 
 
 @pytest.mark.slow
+@pytest.mark.regression
 def test_reasonable_and_doesnt_diverge(synthetic_stationary_states,
                                        dgnss_filter):
   """
@@ -45,6 +46,7 @@ def test_reasonable_and_doesnt_diverge(synthetic_stationary_states,
 
 
 @pytest.mark.slow
+@pytest.mark.regression
 def test_eventually_gets_synthetic_baseline(synthetic_stationary_states,
                                             dgnss_filter):
 
@@ -91,7 +93,7 @@ def test_matches_libswiftnav(synthetic_stationary_states, dgnss_filter):
     bl = dgnss_filter.get_baseline(state)
 
     # for now we'll behappy if the tow agree within a meter.
-#     np.testing.assert_allclose(bl, swift_bl, atol=1)
+    # np.testing.assert_allclose(bl, swift_bl, atol=1)
 
 
 @pytest.mark.skipif(True, reason="Can't match the piksi yet!")
@@ -115,13 +117,15 @@ def test_matches_piksi_logs(jsonlog, dgnss_filter):
       print "python", baseline
       print "actual", locations.NOVATEL_BASELINE
 
-
-@pytest.mark.skipif(True,
-                    reason=("This won't pass until we get the filter capable"
-                            " of handling added/dropped satellites"))
+@pytest.mark.slow
+@pytest.mark.regression
 def test_cors_baseline(rinex_observation, rinex_base,
                        rinex_navigation, dgnss_filter):
-
+  """
+  Tests that the filter is capable of estimating the baseline for the
+  cors short baseline to less than 1m accuracy within a reasonable
+  amount of time.
+  """
   states = rinex.simulate_from_rinex(rinex_observation,
                                      rinex_navigation,
                                      rinex_base)
@@ -144,15 +148,12 @@ def test_cors_baseline(rinex_observation, rinex_base,
                                       sig_cp=0.02,
                                       sig_pr=3.)
 
+  # This iterates over solutions until the baseline gets within
+  # one meter of the known solution at which point it will return True.
+  # If that never happens it returns False
   def eventually_close():
-    for _, state in zip(range(40), states):
-      state['rover'] = ephemeris.add_satellite_state(state['rover'],
-                                                     state['ephemeris'])
-      state['base'] = ephemeris.add_satellite_state(state['base'],
-                                                    state['ephemeris'])
-      dgnss_filter.update(state)
-      bl = dgnss_filter.get_baseline(state)
-
+    for _, soln in zip(range(100), solution.solution(states, dgnss_filter)):
+      bl = soln['rover_pos']['baseline']
       if np.linalg.norm(bl - expected_baseline) <= 1.:
         return True
     return False

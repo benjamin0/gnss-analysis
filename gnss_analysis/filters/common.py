@@ -60,7 +60,11 @@ class DGNSSFilter(object):
       # check to make sure the lock hasn't changed since the previous
       # update.
       locks = sdiffs['lock'].align(self.prev_sdiffs['lock'], 'left')
-      use = locks[0] == locks[1]
+      # we still use a single difference if the previous was nan
+      # under the assumption that the filter logic will add it
+      # to the state appropriately
+      use = np.logical_or(locks[0] == locks[1],
+                          np.isnan(locks[1]))
       if not np.all(use):
         logging.warn("Lock counters slipped, dropping %d diff(s)"
                      % np.sum(np.logical_not(use)))
@@ -69,7 +73,7 @@ class DGNSSFilter(object):
       good_sdiffs = sdiffs
     # store the current sdiffs for the next iteration
     self.prev_sdiffs = good_sdiffs
-    return sdiffs
+    return good_sdiffs
 
   def update(self, state):
     raise NotImplementedError

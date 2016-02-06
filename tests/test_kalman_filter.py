@@ -2,7 +2,101 @@
 import py.test
 import numpy as np
 
+from gnss_analysis import ephemeris
 from gnss_analysis.filters import kalman_filter
+
+
+def test_kalman_drops_sat(synthetic_stationary_states):
+  """
+  Runs through several epochs of data running three filters
+  side by side.  One filter receives all the observations,
+  another has one will see alternating added/dropped satellites,
+  and another will have simultaneously dropped/added satellites.
+  
+  The baselines are compared, but allowed to vary slightly.
+  """
+  np.random.seed(1982)
+  epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
+
+  expected_filter = kalman_filter.KalmanFilter()
+  everyother_filter = kalman_filter.KalmanFilter()
+  simultaneous_filter = kalman_filter.KalmanFilter()
+
+  for i, epoch in enumerate(epochs):
+    expected_filter.update(epoch)
+
+    # drop a random satellite and store it in a new frame,
+    # but only do so after the first iteration
+    if i > 0:
+      epoch_dropped = epoch.copy()
+      cur_ref = everyother_filter.get_reference_satellite()
+      non_ref = everyother_filter.active_sids.drop(cur_ref)
+      to_drop = non_ref.values[np.random.randint(non_ref.size)]
+      epoch_dropped['rover'] = epoch_dropped['rover'].drop(to_drop)
+    else:
+      epoch_dropped = epoch
+
+    # This will drop a satellite one iteration, then not
+    # drop it the next (so it will be added back).  Then
+    # dro another after.
+    if i > 0 and np.mod(i, 0):
+      everyother_filter.update(epoch_dropped)
+    else:
+      everyother_filter.update(epoch)
+
+    # this filter will see a simultaneously added and dropped
+    # satellite.
+    simultaneous_filter.update(epoch_dropped)
+
+
+    expected_bl = expected_filter.get_baseline(epoch)
+    actual_bl = everyother_filter.get_baseline(epoch)
+    simul_bl = simultaneous_filter.get_baseline(epoch)
+
+    # We don't expect a perfect match since each filter will have
+    # computed a solution using different data.
+    np.testing.assert_allclose(expected_bl, actual_bl, atol=1e-3)
+    np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
+
+
+def test_kalman_change_reference_sat(synthetic_stationary_states):
+  """
+  This runs through several epochs of data and performs a
+  few sanity checks.  In particular it checks that changing
+  the reference doesn't change the baseline solution much, and
+  that changing the reference and changing right back doesn't
+  cause the solution at all.
+  """
+  np.random.seed(1982)
+  epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
+
+  expected_filter = kalman_filter.KalmanFilter()
+  actual_filter = kalman_filter.KalmanFilter()
+  roundtrip_filter = kalman_filter.KalmanFilter()
+
+
+  for epoch in epochs:
+    expected_filter.update(epoch)
+    actual_filter.update(epoch)
+    roundtrip_filter.update(epoch)
+
+    cur_ref = actual_filter.get_reference_satellite()
+    non_ref = actual_filter.active_sids.drop(cur_ref)
+    new_ref = non_ref.values[np.random.randint(non_ref.size)]
+    # change to the new (randomly selected) reference
+    actual_filter.change_reference_satellite(new_ref=new_ref)
+
+    # change to the new reference, then change right back.
+    roundtrip_filter.change_reference_satellite(new_ref)
+    roundtrip_filter.change_reference_satellite(cur_ref)
+
+    # get the baselines
+    roundtrip_bl = roundtrip_filter.get_baseline(epoch)
+    expected_bl = expected_filter.get_baseline(epoch)
+    actual_bl = actual_filter.get_baseline(epoch)
+
+    np.testing.assert_allclose(expected_bl, roundtrip_bl, atol=1e-6)
+    np.testing.assert_allclose(expected_bl, actual_bl, atol=1e-6)
 
 
 def test_kalman_predict_ekf():
