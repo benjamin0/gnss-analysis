@@ -27,10 +27,17 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
   def initialize_filter(self, rover_obs, base_obs):
     """
-    Need to implement this in a filter.
+    Need to implement this in a subclassed filter.
 
     """
     return NotImplementedError()
+
+  def process_model(self):
+    """
+    Need to implement this in a subclassed filter.
+
+    """
+    raise NotImplementedError()
 
   def get_baseline(self, obs_set):
     """
@@ -43,7 +50,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     if not self.initialized:
       return None
     else:
-      return self.x.iloc[:self.baseline_states]
+      return self.x.iloc[:self.n_dim]
 
   def choose_reference_sat(self, new_sids):
     """
@@ -157,9 +164,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     Updates the filter state and covariance to contain new satellites.
     """
     self.x = self.x.append(pd.Series([0], index=to_add))
-    new_P = np.empty(np.array(self.P.shape) + to_add.size)
+    new_P = np.zeros(np.array(self.P.shape) + to_add.size)
     new_P[:-to_add.size, :-to_add.size] = self.P
-    new_P[-to_add.size:, -to_add.size:] = self.sig_init * np.eye(to_add.size)
+    new_P[-to_add.size:, -to_add.size:] = (self.sig_init_p / c.GPS_L1_LAMBDA) * np.eye(to_add.size)
     self.P = new_P
     self.active_sids = self.active_sids.append(to_add)
 
@@ -215,7 +222,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # As they mention, it could be replaced by one but for high precision
     # applications should be taken into account.
     omega_e = dgnss.omega_dot_unit_vector(self.base_pos, sdiffs,
-                                          self.x.values[:self.baseline_states])
+                                          self.x.values[:self.n_dim])
     # E_k = omega_e / lambda (see equation 8).
     E = omega_e / c.GPS_L1_LAMBDA
 
@@ -266,8 +273,12 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # for the integer abiguities.  Note that these are only applied
     # to the carrier phase.
     n_rows, n_cols = PE.shape
-    H = np.asarray(np.bmat([[PE, np.zeros((n_rows, n_cols - self.baseline_states)), F],
-                            [sig_ratio * PE, np.zeros((n_rows, n_cols - self.baseline_states)), np.zeros_like(F)]]))
+    H = np.asarray(np.bmat([[PE,
+                             np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim))),
+                             F],
+                            [sig_ratio * PE,
+                             np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim))),
+                             np.zeros_like(F)]]))
 
     # R is the observation noise.  Notice that because we rescaled above
     # our observation noise has a constant diagonal.  Also note that
@@ -276,13 +287,6 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # carrier phase, we have to multiply by 4.
     R = 4 * self.sig_cp * np.eye(H.shape[0])
     return y, H, R
-
-  def process_model(self):
-    """
-
-    """
-    raise NotImplementedError()
-
 
   def update_matched_obs(self, rover_obs, base_obs):
     """
@@ -333,16 +337,12 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
 
 class StaticKalmanFilter(KalmanFilter):
-  """
-  Static KF.
 
-  """
   def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
-               sig_pr=3., sig_init=5e5,
-               *args, **kwdargs):
+               sig_pr=3., sig_init_p=5e5, *args, **kwdargs):
     """
-    Creates an instance of a KalmanFilter with the option of
-    specifying observation and process noise.
+    Initializes a Kalman Filter with a static process model with the option to
+    specify observation and process noise.
 
     Parameters
     ----------
@@ -356,15 +356,19 @@ class StaticKalmanFilter(KalmanFilter):
       The observation noise corresponding to carrier phase. (cycles)
     sig_pr : float
       The observation noise correspondong to pseudorange. (meters)
+    sig_init_p : float
+      The uncertainity associated with the initial baseline estimate. (meters)
+
     """
     self.sig_x = sig_x
     self.sig_z = sig_z
     self.sig_cp = sig_cp
     self.sig_pr = sig_pr
-    # The defualt sets our first guess to be within ~1000 km of the base
-    self.sig_init = sig_init
+    self.sig_init_p = sig_init_p
     self.initialized = False
-    self.baseline_states = 3
+    # The first 3 states of the filter are our baseline estimates in x, y, & z.
+    self.n_dim = 3
+    # The ambiguity states start at index 3.
     self.ambiguity_states_idx = 3
     super(StaticKalmanFilter, self).__init__(*args, **kwdargs)
 
@@ -377,7 +381,7 @@ class StaticKalmanFilter(KalmanFilter):
     assert not self.initialized
     self.active_sids = rover_obs.index.intersection(base_obs.index)
     # A series containing the n, e and d components of the baseline (in meters)
-    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
+    pos = pd.Series(np.zeros(self.n_dim), index=['x', 'y', 'z'])
     # sets the reference satellite to be the first in the active set and
     # creates the state vector of double differenced ambiguities.
     amb = pd.Series(np.zeros(self.active_sids.size - 1),
@@ -386,9 +390,9 @@ class StaticKalmanFilter(KalmanFilter):
     self.x = pd.concat([pos, amb])
     self.P = np.eye(self.x.size)
     # initialize the position covariance
-    self.P[:self.baseline_states] *= self.sig_init
+    self.P[:self.n_dim] *= self.sig_init_p
     # and the ambiguity covariance.
-    self.P[self.ambiguity_states_idx:] *= self.sig_init / c.GPS_L1_LAMBDA
+    self.P[self.ambiguity_states_idx:] *= self.sig_init_p / c.GPS_L1_LAMBDA
     self.initialized = True
 
   def process_model(self):
@@ -409,10 +413,148 @@ class StaticKalmanFilter(KalmanFilter):
     # the receiver will be moving more than 140 mph which over
     # a tenth of a second time step comes out to a process
     # noise with standard deviation of two.
-    Q[:self.baseline_states] *= self.sig_x
+    Q[:self.n_dim] *= self.sig_x**2
     # the rest are the ambiguities which should slowly change
     # TODO: what do we do about cycle slips.
-    Q[self.ambiguity_states_idx:] *= self.sig_z
+    Q[self.ambiguity_states_idx:] *= self.sig_z**2
+    return F, Q
+
+
+class DynamicKalmanFilter(KalmanFilter):
+  """
+  A Kalman Filter with a dynamic model. See section 7.6 (page 435) of GPS
+  Satellite Surveying 4e by Leick.
+
+  """
+
+  def __init__(self,
+               sig_dynamics=1.,
+               sig_z=0.01,
+               sig_cp=0.02,
+               sig_pr=3.,
+               sig_init_p=5e5,
+               sig_init_v=10.,
+               sig_init_a=0.1,
+               correlation_time=10.,
+               *args, **kwdargs):
+    """
+    Initializes a Kalman Filter with a dynamic process model.
+
+    Parameters
+    ----------
+    sig_dynamics : float
+      The process noise that is associated with the expected dynamics.
+    sig_z : float
+      The process noise corresponding to the ambiguity estimate. (cycles)
+        z_k|{k-1} = z_{k-1}|{k-1} + N(0, sig_z^2)
+    sig_cp : float
+      The observation noise corresponding to carrier phase. (cycles)
+    sig_pr : float
+      The observation noise correspondong to pseudorange. (meters)
+    sig_init_p : float
+      The uncertainity associated with the initial baseline position estimate. (meters)
+    sig_init_v : float
+      The uncertainity associated with the initial baseline velocity estimate. (m/s)
+    sig_init_a : float
+      The uncertainity associated with the initial baseline accleration estimate. (m/s^2)
+    correlation_time : float
+      A parameter that governs the volatility of acceleration. Greater values
+      indicates steadier movement. (seconds)
+
+    """
+    self.sig_dynamics = sig_dynamics
+    self.sig_z = sig_z
+    self.sig_cp = sig_cp
+    self.sig_pr = sig_pr
+    self.sig_init_p = sig_init_p
+    self.sig_init_v = sig_init_v
+    self.sig_init_a = sig_init_a
+    # Time between measurements (will need to determine this on the fly later)
+    self.dt = 1.0
+    self.gamma = np.exp(-self.dt / correlation_time) # See eqn 7.6.2 in Leick
+    self.initialized = False
+    # Number of dimensions we want to find a solution (x, y, z)
+    self.n_dim  = 3
+    # Number of dynamic states (position, velocity, accleration)
+    self.dynamic_states = 3
+    # Index at which the ambiguity states start
+    self.ambiguity_states_idx = 9
+    super(DynamicKalmanFilter, self).__init__(*args, **kwdargs)
+
+  def initialize_filter(self, rover_obs, base_obs):
+    """
+    This is inteded to be run once and only once.  It takes an
+    initial set of observations and creates the corresponding
+    state and covariance matrices
+    """
+    assert not self.initialized
+    self.active_sids = rover_obs.index.intersection(base_obs.index)
+    # A series containing the n, e and d components of the baseline (in meters)
+    pos = pd.Series(np.zeros(self.dynamic_states * self.n_dim),
+                    index=['x', 'y', 'z', 'x_vel', 'y_vel', 'z_vel', 'x_acc', 'y_acc', 'z_acc'])
+    # sets the reference satellite to be the first in the active set and
+    # creates the state vector of double differenced ambiguities.
+    amb = pd.Series(np.zeros(self.active_sids.size - 1),
+                    index=self.active_sids[1:])
+    # the state vector is a concatenation of the position and ambiguities
+    self.x = pd.concat([pos, amb])
+    self.P = np.eye(self.x.size)
+    # initialize the position covariance
+    self.P[:self.n_dim] *= self.sig_init_p
+    self.P[self.n_dim :(2*self.n_dim)] *= self.sig_init_v
+    self.P[(2*self.n_dim):(3*self.n_dim)] *= self.sig_init_a
+    # and the ambiguity covariance.
+    self.P[self.ambiguity_states_idx:] *= self.sig_init_p / c.GPS_L1_LAMBDA
+
+    self.initialized = True
+
+  def process_model(self):
+    """
+    Returns the process model which consists of the matrix F and Q
+    such that:
+
+        x_{k|k-1} = F x_{k-1|k-1} + N(0, Q)
+
+    The process model is described by the following equations where
+    x := position, v := velocity, a := acceleration:
+    x_{k|k-1} = x_{k-1|k-1} + dt * v_{k-1|k-1} + .5 * dt^2 * a_{k-1|k-1}
+    v_{k|k-1} = v_{k-1|k-1} + dt * a_{k-1|k-1}
+    a_{k|k-1} = gamma * a_{k-1|k-1}
+
+    In three dimensions, the state transition model for the dynamic states is:
+    F_dyanmics = [[eye(3), dt * eye(3), .5 * dt^2 * eye(3)],
+                  [0,           eye(3),        dt * eye(3)],
+                  [0,                0,     gamma * eye(3)]]
+
+    The state transition model for the ambiguity states is the identity matrix.
+
+    The covariance of the process noise for the dynamic states, Q_dynamics:
+    Q_dynamics = [[(dt^5)/20 * eye(3),  (dt^4)/8 * eye(3), (dt^3)/6 * eye(3)],
+                  [ (dt^4)/8 * eye(3),  (dt^3)/3 * eye(3), (dt^2)/2 * eye(3)],
+                  [ (dt^3)/6 * eye(3),  (dt^2)/2 * eye(3),       dt * eye(3)]]
+
+    The covariance of the process noise for the ambiguity states is diagonal
+    with magnitude of sigma_z^2.
+
+    """
+    # It's possible that the observation_model will drop satellites
+    # when it detects slips, so this definition of n needs to be after
+    n = self.x.size
+    # the process model.
+    F = np.eye(n)
+    F_dynamics = np.array(np.bmat([[np.eye(self.n_dim), self.dt * np.eye(self.n_dim), 0.5 * self.dt**2 * np.eye(self.n_dim)],
+                                   [np.zeros((self.n_dim, self.n_dim)), np.eye(self.n_dim), self.dt * np.eye(self.n_dim)],
+                                   [np.zeros((self.n_dim, self.n_dim)), np.zeros((self.n_dim, self.n_dim)), self.gamma * np.eye(self.n_dim)]]))
+
+    F[:self.ambiguity_states_idx, :self.ambiguity_states_idx] = F_dynamics
+    # process noise
+    Q = np.eye(n) * self.sig_z**2
+    Q_dynamics = self.sig_dynamics**2 \
+                 * np.array(np.bmat([[(self.dt**5 / 20) * np.eye(self.n_dim), (self.dt**4 / 8) * np.eye(self.n_dim), (self.dt**3 / 6) * np.eye(self.n_dim)],
+                                     [(self.dt**4 / 8) * np.eye(self.n_dim), (self.dt**3 / 3) * np.eye(self.n_dim), (self.dt**2 / 2) * np.eye(self.n_dim)],
+                                     [(self.dt**3 / 6) * np.eye(self.n_dim), (self.dt**2 / 2) * np.eye(self.n_dim), self.dt * np.eye(self.n_dim)]]))
+
+    Q[:self.ambiguity_states_idx, :self.ambiguity_states_idx] = Q_dynamics
     return F, Q
 
 

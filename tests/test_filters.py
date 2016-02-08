@@ -1,15 +1,15 @@
 import pytest
 import numpy as np
 
-from gnss_analysis import locations, filters, solution, ephemeris
-from gnss_analysis.io import simulate
-from gnss_analysis.io import rinex
+from gnss_analysis.io import simulate, rinex
+from gnss_analysis import locations, solution
+from gnss_analysis.filters import kalman_filter, swiftnav_filter
 
 
 @pytest.fixture()
 def dgnss_filter():
   # TODO: Eventually use py.test parameterize to iterate over all filters
-  return filters.KalmanFilter(base_pos=locations.LEICA_ABSOLUTE)
+  return kalman_filter.StaticKalmanFilter(base_pos=locations.LEICA_ABSOLUTE)
 
 
 @pytest.mark.slow
@@ -80,7 +80,7 @@ def test_eventually_gets_synthetic_baseline(synthetic_stationary_states,
 @pytest.mark.skipif(True, reason="The swiftnav baseline quickly diverges.")
 def test_matches_libswiftnav(synthetic_stationary_states, dgnss_filter):
 
-  swift_filter = filters.SwiftNavDGNSSFilter(disable_raim=True,
+  swift_filter = swiftnav_filter.SwiftNavDGNSSFilter(disable_raim=True,
                                              base_pos=locations.LEICA_ABSOLUTE)
 
   for _, state in zip(range(10), synthetic_stationary_states):
@@ -120,19 +120,23 @@ def test_matches_piksi_logs(jsonlog, dgnss_filter):
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_cors_baseline(rinex_observation, rinex_base,
-                       rinex_navigation, dgnss_filter):
+@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
+                                          kalman_filter.DynamicKalmanFilter])
+def test_cors_baseline(datadir, filter_class):
   """
   Tests that the filter is capable of estimating the baseline for the
   cors short baseline to less than 1m accuracy within a reasonable
   amount of time.
   """
-  states = simulate.simulate_from_rinex(rinex_observation,
-                                        rinex_navigation,
-                                        rinex_base)
-  rover_lines = rinex.iter_padded_lines(rinex_observation)
+
+  rov = datadir.join('short_baseline_cors/seat032/seat0320.16o').strpath
+  nav = datadir.join('short_baseline_cors/seat032/seat0320.16n').strpath
+  base = datadir.join('short_baseline_cors/ssho032/ssho0320.16o').strpath
+
+  states = simulate.simulate_from_rinex(rov, nav, base)
+  rover_lines = rinex.iter_padded_lines(rov)
   rover_header = rinex.parse_header(rover_lines)
-  base_lines = rinex.iter_padded_lines(rinex_base)
+  base_lines = rinex.iter_padded_lines(base)
   base_header = rinex.parse_header(base_lines)
 
   rover_pos = np.array([rover_header['x'],
@@ -143,11 +147,7 @@ def test_cors_baseline(rinex_observation, rinex_base,
                        base_header['z']])
   expected_baseline = rover_pos - base_pos
 
-  dgnss_filter = filters.KalmanFilter(base_pos=base_pos,
-                                      sig_x=2.,
-                                      sig_z=10.,
-                                      sig_cp=0.02,
-                                      sig_pr=3.)
+  dgnss_filter = filter_class(base_pos=base_pos)
 
   # This iterates over solutions until the baseline gets within
   # one meter of the known solution at which point it will return True.
@@ -175,7 +175,7 @@ def test_cors_drops_reference(datadir, dgnss_filter):
   nav = datadir.join('cors_drops_reference/seat032/seat0320.16n').strpath
   base = datadir.join('cors_drops_reference/ssho032/partial_ssho0320.16o').strpath
 
-  states = rinex.simulate_from_rinex(rov, nav, base)
+  states = simulate.simulate_from_rinex(rov, nav, base)
   rover_lines = rinex.iter_padded_lines(rov)
   rover_header = rinex.parse_header(rover_lines)
   base_lines = rinex.iter_padded_lines(base)
@@ -189,11 +189,8 @@ def test_cors_drops_reference(datadir, dgnss_filter):
                        base_header['z']])
   expected_baseline = rover_pos - base_pos
 
-  dgnss_filter = filters.KalmanFilter(base_pos=base_pos,
-                                      sig_x=2.,
-                                      sig_z=10.,
-                                      sig_cp=0.02,
-                                      sig_pr=3.)
+  dgnss_filter = kalman_filter.StaticKalmanFilter(base_pos=base_pos)
+
   solns = list(solution.solution(states, dgnss_filter))
   err = np.linalg.norm(solns[-1]['rover_pos']['baseline'] - expected_baseline)
   # this dataset doesn't have many observations so we just make sure the
