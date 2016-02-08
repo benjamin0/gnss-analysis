@@ -159,3 +159,42 @@ def test_cors_baseline(rinex_observation, rinex_base,
     return False
 
   assert eventually_close()
+
+
+@pytest.mark.slow
+@pytest.mark.regression
+def test_cors_drops_reference(datadir, dgnss_filter):
+  """
+  Tests that the filter is capable of estimating the baseline for the
+  cors short baseline to less than 1m accuracy within a reasonable
+  amount of time.
+  """
+
+  rov = datadir.join('cors_drops_reference/seat032/partial_seat0320.16o').strpath
+  nav = datadir.join('cors_drops_reference/seat032/seat0320.16n').strpath
+  base = datadir.join('cors_drops_reference/ssho032/partial_ssho0320.16o').strpath
+
+  states = rinex.simulate_from_rinex(rov, nav, base)
+  rover_lines = rinex.iter_padded_lines(rov)
+  rover_header = rinex.parse_header(rover_lines)
+  base_lines = rinex.iter_padded_lines(base)
+  base_header = rinex.parse_header(base_lines)
+
+  rover_pos = np.array([rover_header['x'],
+                        rover_header['y'],
+                        rover_header['z']])
+  base_pos = np.array([base_header['x'],
+                       base_header['y'],
+                       base_header['z']])
+  expected_baseline = rover_pos - base_pos
+
+  dgnss_filter = filters.KalmanFilter(base_pos=base_pos,
+                                      sig_x=2.,
+                                      sig_z=10.,
+                                      sig_cp=0.02,
+                                      sig_pr=3.)
+  solns = list(solution.solution(states, dgnss_filter))
+  err = np.linalg.norm(solns[-1]['rover_pos']['baseline'] - expected_baseline)
+  # this dataset doesn't have many observations so we just make sure the
+  # baseline is reasonable.
+  assert err <= 2.
