@@ -18,7 +18,7 @@ def test_delta_tof_for_known_position(ephemerides):
   """
   location_ecef = locations.NOVATEL_ABSOLUTE
 
-  first_toa = ephemerides['time'] + np.timedelta64(100, 's')
+  first_toa = np.max(ephemerides['toc'].values) + np.timedelta64(100, 's')
   first = synthetic.observation(ephemerides, location_ecef,
                                 first_toa)
   # we don't account for satellite error here because tot is in system time

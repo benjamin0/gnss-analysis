@@ -44,12 +44,10 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     Returns the baseline corresponding to the current state.
     """
     # TODO: In theory we could return the baseline for future / past epochs
-
-    # For now we make just return the current filter state.
-    assert self.cur_time == common.get_unique_value(obs_set['rover']['time'])
     if not self.initialized:
       return None
     else:
+      # For now we make just return the current filter state.
       return self.x.iloc[:self.n_dim]
 
   def choose_reference_sat(self, new_sids):
@@ -471,10 +469,10 @@ class DynamicKalmanFilter(KalmanFilter):
     self.sig_init_a = sig_init_a
     # Time between measurements (will need to determine this on the fly later)
     self.dt = 1.0
-    self.gamma = np.exp(-self.dt / correlation_time) # See eqn 7.6.2 in Leick
+    self.gamma = np.exp(-self.dt / correlation_time)# See eqn 7.6.2 in Leick
     self.initialized = False
     # Number of dimensions we want to find a solution (x, y, z)
-    self.n_dim  = 3
+    self.n_dim = 3
     # Number of dynamic states (position, velocity, accleration)
     self.dynamic_states = 3
     # Index at which the ambiguity states start
@@ -501,8 +499,8 @@ class DynamicKalmanFilter(KalmanFilter):
     self.P = np.eye(self.x.size)
     # initialize the position covariance
     self.P[:self.n_dim] *= self.sig_init_p
-    self.P[self.n_dim :(2*self.n_dim)] *= self.sig_init_v
-    self.P[(2*self.n_dim):(3*self.n_dim)] *= self.sig_init_a
+    self.P[self.n_dim:(2 * self.n_dim)] *= self.sig_init_v
+    self.P[(2 * self.n_dim):(3 * self.n_dim)] *= self.sig_init_a
     # and the ambiguity covariance.
     self.P[self.ambiguity_states_idx:] *= self.sig_init_p / c.GPS_L1_LAMBDA
 

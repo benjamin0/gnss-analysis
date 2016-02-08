@@ -3,11 +3,10 @@ import numpy as np
 
 from gnss_analysis.filters import kalman_filter
 
-@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
-                                          kalman_filter.DynamicKalmanFilter])
+
 @pytest.mark.parametrize("drop_ref", [True, False])
-def test_kalman_drops_sat(synthetic_stationary_states,
-                          drop_ref, filter_class):
+def test_kalman_drops_sat(synthetic_stationary_observations,
+                          drop_ref, dgnss_filter_class):
   """
   Runs through several epochs of data running three filters
   side by side.  One filter receives all the observations,
@@ -17,11 +16,12 @@ def test_kalman_drops_sat(synthetic_stationary_states,
   The baselines are compared, but allowed to vary slightly.
   """
   np.random.seed(1982)
-  epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
+  epochs = [x for _, x in zip(range(10),
+                              synthetic_stationary_observations)]
 
-  expected_filter = filter_class()
-  everyother_filter = filter_class()
-  simultaneous_filter = filter_class()
+  expected_filter = dgnss_filter_class()
+  everyother_filter = dgnss_filter_class()
+  simultaneous_filter = dgnss_filter_class()
 
   for i, epoch in enumerate(epochs):
     expected_filter.update(epoch)
@@ -62,9 +62,8 @@ def test_kalman_drops_sat(synthetic_stationary_states,
     np.testing.assert_allclose(expected_bl, actual_bl, atol=1e-3)
     np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
 
-@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
-                                          kalman_filter.DynamicKalmanFilter])
-def test_kalman_change_reference_sat(synthetic_stationary_states, filter_class):
+def test_kalman_change_reference_sat(synthetic_stationary_observations,
+                                     dgnss_filter_class):
   """
   This runs through several epochs of data and performs a
   few sanity checks.  In particular it checks that changing
@@ -73,11 +72,12 @@ def test_kalman_change_reference_sat(synthetic_stationary_states, filter_class):
   cause the solution at all.
   """
   np.random.seed(1982)
-  epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
+  epochs = [x for _, x in zip(range(10),
+                              synthetic_stationary_observations)]
 
-  expected_filter = filter_class()
-  actual_filter = filter_class()
-  roundtrip_filter = filter_class()
+  expected_filter = dgnss_filter_class()
+  actual_filter = dgnss_filter_class()
+  roundtrip_filter = dgnss_filter_class()
 
   for epoch in epochs:
     expected_filter.update(epoch)

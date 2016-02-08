@@ -1,3 +1,4 @@
 from .common import TimeMatchingDGNSSFilter
 from gnss_analysis.filters.swiftnav_filter import SwiftNavDGNSSFilter
-from gnss_analysis.filters.kalman_filter import KalmanFilter
+from gnss_analysis.filters.kalman_filter import DynamicKalmanFilter
+from gnss_analysis.filters.kalman_filter import StaticKalmanFilter

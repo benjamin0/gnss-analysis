@@ -11,7 +11,7 @@ def test_observation(ephemerides):
   by synthetic.observation are in accordance with RINEX
   defined observation types.
   """
-  toa = ephemerides['time'].values[0] + np.timedelta64(10, 's')
+  toa = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
 
   obs = synthetic.observation(ephemerides,
                               locations.NOVATEL_ABSOLUTE,
@@ -53,8 +53,7 @@ def test_observation(ephemerides):
 
 
 def test_piksi_like_observation(ephemerides):
-
-  toa = ephemerides['time'].values[0] + np.timedelta64(10, 's')
+  toa = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
 
   obs = synthetic.piksi_like_observation(ephemerides,
                                          locations.NOVATEL_ABSOLUTE,

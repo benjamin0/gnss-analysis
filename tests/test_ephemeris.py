@@ -17,7 +17,7 @@ def test_calc_sat_state(ephemerides):
   version of calc_sat_state matches the c implementation.
   """
   n = ephemerides.shape[0]
-  time = ephemerides['time'].copy()
+  time = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
   noise = 1e-3 * np.random.normal(size=n)
   time += time_utils.timedelta_from_seconds(noise)
 
@@ -30,10 +30,10 @@ def test_calc_sat_state(ephemerides):
     eph = ephemerides.iloc[[i]]
     eph_obj = observations.mk_ephemeris(eph.reset_index())
     # compute the distance to satellite at the time of observation
-    wn_tow = time_utils.datetime_to_tow(time.values[i])
+    wn_tow = time_utils.datetime_to_tow(time[i])
     gpst = gpstime.GpsTime(**wn_tow)
     expected = eph_obj.calc_sat_state(gpst)
-    another = ephemeris.calc_sat_state(eph, time.iloc[[i]])
+    another = ephemeris.calc_sat_state(eph, time[i])
     act = actual.iloc[[i], :]
 
     # make sure bulk and individual sat state error computations
@@ -56,7 +56,7 @@ def test_calc_sat_state(ephemerides):
 
 
 def test_sagnac_rotation(ephemerides):
-  time = ephemerides['time'].copy()
+  time = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
   n = ephemerides.shape[0]
   noise = 40 + 1e-3 * np.random.normal(size=n)
   time += time_utils.timedelta_from_seconds(noise)
@@ -126,8 +126,8 @@ def test_add_satellite_state(ephemerides):
   """
   Makes sure that add_satellite_state performs as expected
   """
-  ref_time = ephemerides.iloc[0]['time']
-  ref_time = ref_time.to_datetime64() + time_utils.timedelta_from_seconds(40)
+  ref_time = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
+  ref_time = ref_time + time_utils.timedelta_from_seconds(40)
 
   # make some random transmission times
   np.random.seed(1982)
@@ -202,7 +202,7 @@ def test_time_of_flight(ephemerides):
   for tof_func in [ephemeris.time_of_flight_from_tot,
                    ephemeris.time_of_flight_from_toa]:
 
-    ref_time = ephemerides.iloc[0]['time'].to_datetime64()
+    ref_time = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
     ref_time += time_utils.timedelta_from_seconds(40)
     ref_loc = locations.NOVATEL_ABSOLUTE
 
@@ -234,7 +234,7 @@ def test_time_of_roundtrip(ephemerides):
   backs out the time of transmission to make sure it matches.
   """
   n = ephemerides.shape[0]
-  tot = ephemerides['time'].copy()
+  tot = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
   noise = np.random.normal(0.1, 0.1, size=n)
   tot += 40 + time_utils.timedelta_from_seconds(noise)
   ref_loc = locations.NOVATEL_ABSOLUTE
@@ -256,7 +256,7 @@ def test_sat_velocity(ephemerides):
   # computes a set of satellite states, then uses the state
   # velocity to predict the state at a nearby time and compares
   # it to the actual sat state at that time.
-  ref_time = ephemerides.iloc[0]['time']
+  ref_time = np.max(ephemerides['toc'].values) + np.timedelta64(10, 's')
   ref_time += time_utils.timedelta_from_seconds(40)
 
   sat_state = ephemeris.calc_sat_state(ephemerides, ref_time)

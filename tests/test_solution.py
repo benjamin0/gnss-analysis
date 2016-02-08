@@ -15,18 +15,19 @@ def test_spp_consistent(synthetic_observations):
   libswiftnav = solution.libswiftnav_calc_PVT(obs)
   # make sure the two agree to mm resolution.
   np.testing.assert_array_almost_equal(libswiftnav['pos_ecef'],
-                                       spp['pos_ecef'], 3)
+                                       spp[['x', 'y', 'z']].values[0], 3)
   # make sure the clock offsets agree
   np.testing.assert_array_almost_equal(libswiftnav['clock_offset'],
                                        spp['clock_offset'], 4)
   # make sure times are within a 10us of each other.
-  tdiff = time_utils.seconds_from_timedelta(libswiftnav['time'] - spp['time'])
+  assert spp.index.name == 'time'
+  tdiff = time_utils.seconds_from_timedelta(libswiftnav['time'] - spp.index.values)
   assert np.abs(tdiff) < 1e-5
 
 
-def test_matches_piksi(jsonlog):
+def test_matches_piksi(piksi_log_path):
 
-  states = (x for _, x in zip(range(10), simulate.simulate_from_log(jsonlog)))
+  states = (x for _, x in zip(range(10), simulate.simulate_from_log(piksi_log_path)))
   tested = False
   for state in states:
     if np.any(np.isnan(state['rover']['raw_doppler'])):
@@ -36,7 +37,7 @@ def test_matches_piksi(jsonlog):
     state['rover'] = ephemeris.add_satellite_state(state['rover'], state['ephemeris'])
 
     py_pos = solution.single_point_position(state['rover'])
-    piksi_pos = state['rover_spp_ecef'][['x', 'y', 'z']]
+    piksi_pos = state['rover_spp_ecef'][['x', 'y', 'z']].values
     # right now 15cm agreement is all we can get (often less than a cm though).
     # This is possibly due to rounding of the pseudoranges during message
     # transmission and the fact that observations are propagated using doppler,
@@ -44,7 +45,7 @@ def test_matches_piksi(jsonlog):
     # tdcp (the same as on the piksi), but this happens using already
     # propagated carrier phases.  It could also be linked to disagreements
     # between piksi and RINEX conventions.
-    assert np.linalg.norm(py_pos['pos_ecef'] - piksi_pos) < 0.15
+    assert np.linalg.norm(py_pos[['x', 'y', 'z']].values - piksi_pos) < 0.15
     tested = True
 
   # make sure we actually tested at least one position.
@@ -61,12 +62,14 @@ def test_single_point_position(synthetic_observations):
   obs = ephemeris.add_satellite_state(synthetic_observations)
   spp = solution.single_point_position(obs)
   # make sure the resulting estimate is within 1cm of the reference
-  error = spp['pos_ecef'] - obs.iloc[0][['ref_x', 'ref_y', 'ref_z']]
+  ref_position = obs.iloc[0][['ref_x', 'ref_y', 'ref_z']].values
+  error = spp[['x', 'y', 'z']].values - ref_position
   # If we just remove all the noise we can get sub mm single point positions!
   assert np.linalg.norm(error) < 1e-4
 
   # Sub nano-second agreement on the time of arrival
-  error = time_utils.seconds_from_timedelta(spp['time'] - obs['ref_t'])
+  assert spp.index.name == 'time'
+  error = time_utils.seconds_from_timedelta(spp.index.values - obs['ref_t'])
   assert np.all(error <= 1e-9)
 
   # Here just make sure that the reference rover clock error was recovered
