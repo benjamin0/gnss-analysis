@@ -21,57 +21,16 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
   differences.
   """
 
-  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
-               sig_pr=3., sig_init=5e5,
-               *args, **kwdargs):
-    """
-    Creates an instance of a KalmanFilter with the option of
-    specifying observation and process noise.
-    
-    Parameters
-    ----------
-    sig_x : float
-      The process noise corresponding to the position estimate (meters)
-        x_k|{k-1} = x_{k-1}|{k-1} + N(0, sig_x^2)
-    sig_z : float
-      The process noise corresponding to the ambiguity estimate. (cycles)
-        z_k|{k-1} = z_{k-1}|{k-1} + N(0, sig_z^2)
-    sig_cp : float
-      The observation noise corresponding to carrier phase. (cycles)
-    sig_pr : float
-      The observation noise correspondong to pseudorange. (meters)
-    """
-    self.sig_x = sig_x
-    self.sig_z = sig_z
-    self.sig_cp = sig_cp
-    self.sig_pr = sig_pr
-    # The defualt sets our first guess to be within ~1000 km of the base
-    self.sig_init = sig_init
+  def __init__(self, *args, **kwdargs):
     self.initialized = False
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
     """
-    This is inteded to be run once and only once.  It takes an
-    initial set of observations and creates the corresponding
-    state and covariance matrices
+    Need to implement this in a filter.
+
     """
-    assert not self.initialized
-    self.active_sids = rover_obs.index.intersection(base_obs.index)
-    # A series containing the n, e and d components of the baseline (in meters)
-    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
-    # sets the reference satellite to be the first in the active set and
-    # creates the state vector of double differenced ambiguities.
-    amb = pd.Series(np.zeros(self.active_sids.size - 1),
-                    index=self.active_sids[1:])
-    # the state vector is a concatenation of the position and ambiguities
-    self.x = pd.concat([pos, amb])
-    self.P = np.eye(self.x.size)
-    # initialize the position covariance
-    self.P[:3] *= self.sig_init
-    # and the ambiguity covariance.
-    self.P[3:] *= self.sig_init / c.GPS_L1_LAMBDA
-    self.initialized = True
+    return NotImplementedError()
 
   def get_baseline(self, obs_set):
     """
@@ -84,7 +43,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     if not self.initialized:
       return None
     else:
-      return self.x.iloc[:3]
+      return self.x.iloc[:self.baseline_states]
 
   def choose_reference_sat(self, new_sids):
     """
@@ -107,7 +66,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     """
     # The current reference is the satellite that isn't included
     # in the integer ambiguity index.
-    cur_ref = self.active_sids.difference(self.x.index[3:])
+    cur_ref = self.active_sids.difference(self.x.index[self.ambiguity_states_idx:])
     # There should only ever be one such satellite.
     return common.get_unique_value(cur_ref)
 
@@ -158,7 +117,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     K = np.eye(self.x.size)
     # The first three indices are the position, we don't want
     # to mess with those.
-    K[3:, new_ind] = -1.
+    K[self.ambiguity_states_idx:, new_ind] = -1.
     self.K = K
 
     # Apply the transformation to swap the cur_ref for the new one
@@ -214,7 +173,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # in the state (x). For now x should only contain active
     # satellites, but in the future we may want to leave
     # deactivated satellites around.
-    all_sids = self.active_sids.union(self.x.index[3:])
+    all_sids = self.active_sids.union(self.x.index[self.ambiguity_states_idx:])
     # are all the satellites already active
     if np.all(new_sids == self.active_sids):
       return
@@ -256,7 +215,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # As they mention, it could be replaced by one but for high precision
     # applications should be taken into account.
     omega_e = dgnss.omega_dot_unit_vector(self.base_pos, sdiffs,
-                                          self.x.values[:3])
+                                          self.x.values[:self.baseline_states])
     # E_k = omega_e / lambda (see equation 8).
     E = omega_e / c.GPS_L1_LAMBDA
 
@@ -306,8 +265,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # computed above.  The second column corresponds to coefficients
     # for the integer abiguities.  Note that these are only applied
     # to the carrier phase.
-    H = np.asarray(np.bmat([[PE, F],
-                            [sig_ratio * PE, np.zeros_like(F)]]))
+    n_rows, n_cols = PE.shape
+    H = np.asarray(np.bmat([[PE, np.zeros((n_rows, n_cols - self.baseline_states)), F],
+                            [sig_ratio * PE, np.zeros((n_rows, n_cols - self.baseline_states)), np.zeros_like(F)]]))
 
     # R is the observation noise.  Notice that because we rescaled above
     # our observation noise has a constant diagonal.  Also note that
@@ -319,27 +279,10 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
   def process_model(self):
     """
-    Returns the process model which consists of the matrix F and Q
-    such that:
-    
-        x_{k|k-1} = F x_{k-1|k-1} + N(0, Q)
+
     """
-    # It's possible that the observation_model will drop satellites
-    # when it detects slips, so this definition of n needs to be after
-    n = self.x.size
-    # the process model.
-    F = np.eye(n)
-    # process noise
-    Q = np.eye(n)
-    # the first three values are the location, we don't expect
-    # the receiver will be moving more than 140 mph which over
-    # a tenth of a second time step comes out to a process
-    # noise with standard deviation of two.
-    Q[:3] *= self.sig_x
-    # the rest are the ambiguities which should slowly change
-    # TODO: what do we do about cycle slips.
-    Q[3:] *= self.sig_z
-    return F, Q
+    raise NotImplementedError()
+
 
   def update_matched_obs(self, rover_obs, base_obs):
     """
@@ -363,7 +306,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
     # We expect the sdiffs to be in the same order as the ambiguity states
     # Here we simply make sure that's the case
-    expected_order = self.x.index[3:].insert(0, self.get_reference_satellite())
+    expected_order = self.x.index[self.ambiguity_states_idx:].insert(0, self.get_reference_satellite())
 
     if not np.all(sdiffs.index == expected_order):
       sdiffs = sdiffs.ix[expected_order]
@@ -387,6 +330,90 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     self.x.values[:] = x
     # P is an ndarray so we just overwrite it.
     self.P = P
+
+
+class StaticKalmanFilter(KalmanFilter):
+  """
+  Static KF.
+
+  """
+  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
+               sig_pr=3., sig_init=5e5,
+               *args, **kwdargs):
+    """
+    Creates an instance of a KalmanFilter with the option of
+    specifying observation and process noise.
+
+    Parameters
+    ----------
+    sig_x : float
+      The process noise corresponding to the position estimate (meters)
+        x_k|{k-1} = x_{k-1}|{k-1} + N(0, sig_x^2)
+    sig_z : float
+      The process noise corresponding to the ambiguity estimate. (cycles)
+        z_k|{k-1} = z_{k-1}|{k-1} + N(0, sig_z^2)
+    sig_cp : float
+      The observation noise corresponding to carrier phase. (cycles)
+    sig_pr : float
+      The observation noise correspondong to pseudorange. (meters)
+    """
+    self.sig_x = sig_x
+    self.sig_z = sig_z
+    self.sig_cp = sig_cp
+    self.sig_pr = sig_pr
+    # The defualt sets our first guess to be within ~1000 km of the base
+    self.sig_init = sig_init
+    self.initialized = False
+    self.baseline_states = 3
+    self.ambiguity_states_idx = 3
+    super(StaticKalmanFilter, self).__init__(*args, **kwdargs)
+
+  def initialize_filter(self, rover_obs, base_obs):
+    """
+    This is inteded to be run once and only once.  It takes an
+    initial set of observations and creates the corresponding
+    state and covariance matrices
+    """
+    assert not self.initialized
+    self.active_sids = rover_obs.index.intersection(base_obs.index)
+    # A series containing the n, e and d components of the baseline (in meters)
+    pos = pd.Series(np.zeros(3), index=['x', 'y', 'z'])
+    # sets the reference satellite to be the first in the active set and
+    # creates the state vector of double differenced ambiguities.
+    amb = pd.Series(np.zeros(self.active_sids.size - 1),
+                    index=self.active_sids[1:])
+    # the state vector is a concatenation of the position and ambiguities
+    self.x = pd.concat([pos, amb])
+    self.P = np.eye(self.x.size)
+    # initialize the position covariance
+    self.P[:self.baseline_states] *= self.sig_init
+    # and the ambiguity covariance.
+    self.P[self.ambiguity_states_idx:] *= self.sig_init / c.GPS_L1_LAMBDA
+    self.initialized = True
+
+  def process_model(self):
+    """
+    Returns the process model which consists of the matrix F and Q
+    such that:
+
+        x_{k|k-1} = F x_{k-1|k-1} + N(0, Q)
+    """
+    # It's possible that the observation_model will drop satellites
+    # when it detects slips, so this definition of n needs to be after
+    n = self.x.size
+    # the process model.
+    F = np.eye(n)
+    # process noise
+    Q = np.eye(n)
+    # the first three values are the location, we don't expect
+    # the receiver will be moving more than 140 mph which over
+    # a tenth of a second time step comes out to a process
+    # noise with standard deviation of two.
+    Q[:self.baseline_states] *= self.sig_x
+    # the rest are the ambiguities which should slowly change
+    # TODO: what do we do about cycle slips.
+    Q[self.ambiguity_states_idx:] *= self.sig_z
+    return F, Q
 
 
 def expand_operator(z):

@@ -20,9 +20,9 @@ def test_kalman_drops_sat(synthetic_stationary_states,
   np.random.seed(1982)
   epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
 
-  expected_filter = kalman_filter.KalmanFilter()
-  everyother_filter = kalman_filter.KalmanFilter()
-  simultaneous_filter = kalman_filter.KalmanFilter()
+  expected_filter = kalman_filter.StaticKalmanFilter()
+  everyother_filter = kalman_filter.StaticKalmanFilter()
+  simultaneous_filter = kalman_filter.StaticKalmanFilter()
 
   for i, epoch in enumerate(epochs):
     expected_filter.update(epoch)
@@ -75,9 +75,9 @@ def test_kalman_change_reference_sat(synthetic_stationary_states):
   np.random.seed(1982)
   epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
 
-  expected_filter = kalman_filter.KalmanFilter()
-  actual_filter = kalman_filter.KalmanFilter()
-  roundtrip_filter = kalman_filter.KalmanFilter()
+  expected_filter = kalman_filter.StaticKalmanFilter()
+  actual_filter = kalman_filter.StaticKalmanFilter()
+  roundtrip_filter = kalman_filter.StaticKalmanFilter()
 
   for epoch in epochs:
     expected_filter.update(epoch)
