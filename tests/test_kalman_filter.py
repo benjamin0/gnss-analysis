@@ -1,12 +1,14 @@
 
-import py.test
+import pytest
 import numpy as np
 
 from gnss_analysis import ephemeris
 from gnss_analysis.filters import kalman_filter
 
 
-def test_kalman_drops_sat(synthetic_stationary_states):
+@pytest.mark.parametrize("drop_ref", [True, False])
+def test_kalman_drops_sat(synthetic_stationary_states,
+                          drop_ref):
   """
   Runs through several epochs of data running three filters
   side by side.  One filter receives all the observations,
@@ -30,8 +32,11 @@ def test_kalman_drops_sat(synthetic_stationary_states):
     if i > 0:
       epoch_dropped = epoch.copy()
       cur_ref = everyother_filter.get_reference_satellite()
-      non_ref = everyother_filter.active_sids.drop(cur_ref)
-      to_drop = non_ref.values[np.random.randint(non_ref.size)]
+      if drop_ref:
+        to_drop = cur_ref
+      else:
+        non_ref = everyother_filter.active_sids.drop(cur_ref)
+        to_drop = non_ref.values[np.random.randint(non_ref.size)]
       epoch_dropped['rover'] = epoch_dropped['rover'].drop(to_drop)
     else:
       epoch_dropped = epoch
@@ -73,7 +78,6 @@ def test_kalman_change_reference_sat(synthetic_stationary_states):
   expected_filter = kalman_filter.KalmanFilter()
   actual_filter = kalman_filter.KalmanFilter()
   roundtrip_filter = kalman_filter.KalmanFilter()
-
 
   for epoch in epochs:
     expected_filter.update(epoch)
