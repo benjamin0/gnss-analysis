@@ -137,8 +137,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
                    " satellite.  This implies faulty logic elsewhere")
       return
 
-    logging.debug("Changing reference from %d to %d" % (int(cur_ref),
-                                                        int(new_ref)))
+    logging.debug("Changing reference from %s to %s" % (cur_ref, new_ref))
 
     # determine which index in x corresponds to the new reference
     new_ind = self.x.index.get_indexer([new_ref])
@@ -165,7 +164,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # Apply the transformation to swap the cur_ref for the new one
     self.x.values[:] = np.dot(K, self.x)
     # reflect the change in the index of x
-    self.x.index.values[new_ind] = cur_ref
+    new_index = self.x.index.insert(new_ind, cur_ref)
+    new_index = new_index.delete(new_ind + 1)
+    self.x.index = new_index
 
     # And apply the transformation to the covariance matrix as well.
     self.P = np.dot(np.dot(K, self.P), K.T)
