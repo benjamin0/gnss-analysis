@@ -163,6 +163,7 @@ def parse_types_of_observ(x):
   obs_types = itertools.chain(obs_types, *extra_divs)
 
   renames = {'C': 'raw_pseudorange',
+             'D': 'raw_doppler',
              'P': 'p_code',
              'L': 'carrier_phase',
              'S': 'signal_noise_ratio'}
@@ -589,11 +590,11 @@ def parse_observation_set(lines, observation_parser):
   return normalize(df)
 
 
-def iter_observations(filelike):
+def read_observation_file(filelike):
   """
   Takes a file like object that iterates over lines from a RINEX
-  observaiton file and generates observations sets.  This is done by
-  first reading the header, then iteratively parsing and yielding 
+  observaiton file and returns the header and an observations set
+  generator.  This is done by iteratively parsing and yielding 
   DataFrames consisting of the observations at each epoch.
   
   Parameters
@@ -604,6 +605,8 @@ def iter_observations(filelike):
     
   Returns
   --------
+  header : dict
+    A dictionary containing attributes held in the header
   observations : generator
     Produces a generator that iterates over observations sets,
     with one for each epoch.
@@ -612,22 +615,25 @@ def iter_observations(filelike):
   header = parse_header(lines)
   observation_parser = build_observation_parser(header)
 
-  prev_obs = parse_observation_set(lines, observation_parser)
-  # NOTE: this first observation will have nans for raw_doppler
-  yield prev_obs
-  while True:
-    obs = parse_observation_set(lines, observation_parser)
-    if not np.all(prev_obs.index == obs.index):
-      obs, prev_obs = obs.align(prev_obs, 'left')
-    obs['raw_doppler'] = sbp_utils.tdcp_doppler(prev_obs, obs)
-    yield obs
+  def iter_observations():
+    prev_obs = parse_observation_set(lines, observation_parser)
+    # NOTE: this first observation will have nans for raw_doppler
+    yield prev_obs
+    while True:
+      obs = parse_observation_set(lines, observation_parser)
+      if not np.all(prev_obs.index == obs.index):
+        obs, prev_obs = obs.align(prev_obs, 'left')
+      obs['raw_doppler'] = sbp_utils.tdcp_doppler(prev_obs, obs)
+      yield obs
+
+  return header, iter_observations()
 
 
-def iter_navigations(filelike):
+def read_navigation_file(filelike):
   """
   Takes a file like object that iterates over lines from a RINEX
-  navigation file and generates observations sets.  This is done by
-  first reading the header, then iteratively parsing and yielding 
+  navigation file and returns the header information and a generator
+  of observations sets.  This is done by iteratively parsing and yielding
   DataFrames consisting of the ephemerides at each epoch.
   
   ----------
@@ -637,22 +643,27 @@ def iter_navigations(filelike):
     
   Returns
   --------
+  header : dict
+    A dictionary containing attributes held in the header
   observations : generator
-    Produces a generator that iterates over navigation sets
+    A generator that iterates over navigation sets
     (aka ephemerides) with one for each epoch.
   """
   lines = iter_padded_lines(filelike)
   header = parse_header(lines)
   nav_parser = build_navigation_parser(header)
 
-  def iter_by_prn():
-    nav_message = nav_parser(lines)
-    while len(nav_message):
-      yield pd.Series(nav_message)
+  def iter_navigations():
+    def iter_by_prn():
       nav_message = nav_parser(lines)
+      while len(nav_message):
+        yield pd.Series(nav_message)
+        nav_message = nav_parser(lines)
 
-  for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['toc']):
-    yield pd.DataFrame(list(grp)).set_index('sid')
+    for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['toc']):
+      yield pd.DataFrame(list(grp)).set_index('sid')
+
+  return header, iter_navigations()
 
 
 def iter_padded_lines(file_or_path, pad=80):
@@ -683,53 +694,6 @@ def iter_padded_lines(file_or_path, pad=80):
     lines = iter(file_or_path)
 
   return (('{: <%d}' % pad).format(l) for l in lines)
-
-
-def simulate_from_rinex(rover, navigation, base=None):
-  """
-  Takes filelike objects for rover, navigation and base files
-  and generates states that emulate the states generated
-  from piksi logs (see simulate.py).  A state is emitted for each
-  rover epoch and contains the most recent ephemeris and base
-  observations up to that epoch.
-  """
-
-  # The base observation file is optional.
-  if base is not None:
-    iter_base = iter_observations(base)
-    next_base = iter_base.next()
-
-  # Here we initialize the state with the first navigation
-  # message.
-  iter_nav = iter_navigations(navigation)
-  state = {'ephemeris': iter_nav.next(), }
-  next_nav = iter_nav.next()
-
-  # The goal is to produce a generator that yields a state
-  # for each observed rover epoch.  Here we iterate over
-  # rover epoch's and search for the corresponding base and
-  # ephemeris messages.
-  for obs in iter_observations(rover):
-    # We assume that the ephemeris state should never be
-    # newer than the rover observation.
-    assert state['ephemeris']['toc'][0] <= obs['time'][0]
-    # If the next navigation message comes before
-    # the current rover observation we update the state
-    while np.any(next_nav['toc'] <= obs['time'][0]):
-      state['ephemeris'].update(next_nav)
-      next_nav = iter_nav.next()
-    # If we are using a base station we search for the
-    # most recent base observation that came at or before the
-    # rover epoch.
-    if base is not None:
-      while next_base['time'][0] <= obs['time'][0]:
-        state['base'] = next_base
-        next_base = iter_base.next()
-    # update the rover state
-    state['rover'] = obs
-    # and return a copy of the dict (though not a deep copy since
-    # that causes uneccesary overhead.
-    yield state.copy()
 
 
 def normalize(rinex_obs):

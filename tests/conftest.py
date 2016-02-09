@@ -53,7 +53,7 @@ def ephemerides(jsonlog):
   """
   Loads the first available ephemeris data from log
   """
-  from gnss_analysis import simulate
+  from gnss_analysis.io import simulate
   for state in simulate.simulate_from_log(jsonlog):
     if state['ephemeris'].shape[0] >= 4:
       return state['ephemeris']
@@ -75,15 +75,15 @@ def synthetic_observations(ephemerides):
 
 
 @pytest.fixture()
-def synthetic_state(ephemerides):
+def synthetic_observation_set(ephemerides):
   from gnss_analysis import synthetic, locations
 
   rover_ecef = locations.NOVATEL_ABSOLUTE
   base_ecef = locations.LEICA_ABSOLUTE
 
-  tot = ephemerides['time'] + np.timedelta64(100, 's')
+  tot = ephemerides['toc'].values[0] + np.timedelta64(100, 's')
 
-  return synthetic.synthetic_state(ephemerides,
+  return synthetic.synthetic_observation_set(ephemerides,
                                    rover_ecef, base_ecef,
                                    tot)
 
@@ -101,7 +101,7 @@ def synthetic_stationary_states(ephemerides):
 
     for dt in time_steps:
       toa = np.max(ephemerides['toe'].values) + np.timedelta64(100 + int(1e3 * dt), 'ms')
-      state = synthetic.synthetic_state(ephemerides, rover_ecef,
+      state = synthetic.synthetic_observation_set(ephemerides, rover_ecef,
                                         base_ecef, toa)
       state['base'] = ephemeris.add_satellite_state(state['base'],
                                                     state['ephemeris'])

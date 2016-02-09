@@ -5,7 +5,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
-from gnss_analysis.io import rinex
+from gnss_analysis.io import rinex, simulate
 
 
 def test_parse_line():
@@ -92,22 +92,18 @@ def test_build_parser():
   assert actual == (' hi  ', ' man')
 
 
-def test_simulate(rinex_observation, rinex_navigation):
-  states = rinex.simulate_from_rinex(rover=rinex_observation,
-                                     navigation=rinex_navigation)
-  # simply iterate over the first 10 states and make sure
-  # nothing fails
-  for state in [x for _, x in zip(range(10), states)]:
-    pass
-
-
 def test_navigation(rinex_navigation):
   # this will only work on a specific RINEX file.  Make sure we're using it
   assert os.path.basename(rinex_navigation) == 'seat0320.16n'
   f = open(rinex_navigation, 'r')
   # So far this test just iterates through to a specific known navigation
   # parameters and makes sure that value is parsed correctly.
-  for i, nav in enumerate(rinex.iter_navigations(f)):
+  header, iter_nav = rinex.read_navigation_file(f)
+
+  assert header['a0'] == 4.656612873077e-09
+  assert header['a1'] == 5.329070518201e-15
+
+  for i, nav in enumerate(iter_nav):
     if nav.ix['G02', 'toe'] == datetime.datetime(2016, 1, 31, 22, 0, 0):
       assert nav.ix['G02', 'af0'] == 5.994844250381e-04
       break
@@ -122,7 +118,13 @@ def test_observation(rinex_observation):
   f = open(rinex_observation, 'r')
   # So far this test just iterates through to a specific known observation
   # and makes sure that value is parsed correctly.
-  for i, obs in enumerate(rinex.iter_observations(f)):
+  header, iter_obs = rinex.read_observation_file(f)
+
+  assert header['x'] == -2300592.8570
+  assert header['y'] == -3637848.2430
+  assert header['z'] == 4691079.2150
+
+  for i, obs in enumerate(iter_obs):
     if np.any(obs['time'] == datetime.datetime(2016, 2, 1, 12, 0, 4)):
       np.testing.assert_array_equal(obs.ix['G02', 'carrier_phase'],
                                     np.array(126636838.718))
@@ -143,6 +145,7 @@ def test_parse_with_intermixed_header(rinex_with_intermixed_header):
   # epoch lines.  This makes sure we can handle an example file that
   # does that.  We just make sure it makes it through the file and
   # catches the first and last observation.
-  obs = list(rinex.iter_observations(rinex_with_intermixed_header))
+  header, iter_obs = rinex.read_observation_file(rinex_with_intermixed_header)
+  obs = list(iter_obs)
   assert np.all(obs[0]['time'] == datetime.datetime(2016, 1, 1, 0, 59, 59))
   assert np.all(obs[-1]['time'] == datetime.datetime(2016, 1, 1, 1, 0, 0))

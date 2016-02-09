@@ -10,14 +10,14 @@ from gnss_analysis import constants as c
 from gnss_analysis import dgnss, ephemeris, synthetic, locations, propagate
 
 
-def test_single_difference(synthetic_state):
+def test_single_difference(synthetic_observation_set):
   """
   This assumes that single_difference returns accurate differences
   (which should be checked by test_make_propagated_single_differences)
   and instead focuses on testing edge cases (dropped satellites etc.)
   """
-  base_obs = ephemeris.add_satellite_state(synthetic_state['base'])
-  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'])
+  base_obs = ephemeris.add_satellite_state(synthetic_observation_set['base'])
+  rover_obs = ephemeris.add_satellite_state(synthetic_observation_set['rover'])
   # Compute the full set of single differences.
   expected_diffs = dgnss.single_difference(rover_obs, base_obs)
 
@@ -86,15 +86,15 @@ def test_make_propagated_single_differences(ephemerides):
                                atol=1e-3)
 
 
-def test_matches_make_measurements(synthetic_state):
+def test_matches_make_measurements(synthetic_observation_set):
   """
   Compute double differences and make sure they match the differences
   from swiftnav.dgnss_management.make_measurements_
   """
   # make a set of single differences
-  base_obs = ephemeris.add_satellite_state(synthetic_state['base'])
-  rover_obs = ephemeris.add_satellite_state(synthetic_state['rover'])
-  base_ecef = synthetic_state['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
+  base_obs = ephemeris.add_satellite_state(synthetic_observation_set['base'])
+  rover_obs = ephemeris.add_satellite_state(synthetic_observation_set['rover'])
+  base_ecef = synthetic_observation_set['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
   sdiffs = dgnss.make_propagated_single_differences(rover_obs,
                                                     base_obs,
                                                     base_pos_ecef=base_ecef)

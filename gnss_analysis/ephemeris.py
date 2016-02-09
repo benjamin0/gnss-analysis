@@ -370,19 +370,12 @@ def _update_columns(left, right):
     return right.ix[left.index]
 
 
-def has_sat_state(obs):
+def has_sat_state(observation):
   """
   A simple convenience function which checks if a satellite state field
   exists in obs.
   """
-  return 'sat_x' in obs
-
-
-def maybe_convert_time(obs):
-  if 'time' not in obs:
-    obs.ix[:, 'time'] = time_utils.tow_to_datetime(obs[['wn', 'tow']])
-    obs.drop(['wn', 'tow'], inplace=True)
-  return obs
+  return 'sat_x' in observation
 
 
 def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
@@ -426,8 +419,6 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
   See Also: libswiftnav/track.c::calc_nav_measurements
   """
   assert 'raw_pseudorange' in obs
-
-  obs = maybe_convert_time(obs)
 
   if ephemerides is None:
     # if ephemerides weren't supplied make sure obs contains

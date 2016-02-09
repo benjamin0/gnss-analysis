@@ -73,14 +73,14 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     self.P[3:] *= self.sig_init / c.GPS_L1_LAMBDA
     self.initialized = True
 
-  def get_baseline(self, state):
+  def get_baseline(self, obs_set):
     """
     Returns the baseline corresponding to the current state.
     """
     # TODO: In theory we could return the baseline for future / past epochs
 
     # For now we make just return the current filter state.
-    assert self.cur_time == common.get_unique_value(state['rover']['time'])
+    assert self.cur_time == common.get_unique_value(obs_set['rover']['time'])
     if not self.initialized:
       return None
     else:
