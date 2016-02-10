@@ -1,14 +1,13 @@
-
 import pytest
 import numpy as np
 
-from gnss_analysis import ephemeris
 from gnss_analysis.filters import kalman_filter
 
-
+@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
+                                          kalman_filter.DynamicKalmanFilter])
 @pytest.mark.parametrize("drop_ref", [True, False])
 def test_kalman_drops_sat(synthetic_stationary_states,
-                          drop_ref):
+                          drop_ref, filter_class):
   """
   Runs through several epochs of data running three filters
   side by side.  One filter receives all the observations,
@@ -20,9 +19,9 @@ def test_kalman_drops_sat(synthetic_stationary_states,
   np.random.seed(1982)
   epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
 
-  expected_filter = kalman_filter.KalmanFilter()
-  everyother_filter = kalman_filter.KalmanFilter()
-  simultaneous_filter = kalman_filter.KalmanFilter()
+  expected_filter = filter_class()
+  everyother_filter = filter_class()
+  simultaneous_filter = filter_class()
 
   for i, epoch in enumerate(epochs):
     expected_filter.update(epoch)
@@ -63,8 +62,9 @@ def test_kalman_drops_sat(synthetic_stationary_states,
     np.testing.assert_allclose(expected_bl, actual_bl, atol=1e-3)
     np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
 
-
-def test_kalman_change_reference_sat(synthetic_stationary_states):
+@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
+                                          kalman_filter.DynamicKalmanFilter])
+def test_kalman_change_reference_sat(synthetic_stationary_states, filter_class):
   """
   This runs through several epochs of data and performs a
   few sanity checks.  In particular it checks that changing
@@ -75,9 +75,9 @@ def test_kalman_change_reference_sat(synthetic_stationary_states):
   np.random.seed(1982)
   epochs = [x for _, x in zip(range(10), synthetic_stationary_states)]
 
-  expected_filter = kalman_filter.KalmanFilter()
-  actual_filter = kalman_filter.KalmanFilter()
-  roundtrip_filter = kalman_filter.KalmanFilter()
+  expected_filter = filter_class()
+  actual_filter = filter_class()
+  roundtrip_filter = filter_class()
 
   for epoch in epochs:
     expected_filter.update(epoch)
