@@ -6,6 +6,7 @@ Parses satellite observaiton files that have been reported using:
 Reference: ftp://igs.org/pub/data/format/rinex211.txt
 """
 import os
+import re
 import struct
 import string
 import logging
@@ -16,6 +17,16 @@ import pandas as pd
 
 from gnss_analysis import time_utils
 from gnss_analysis.io import common
+
+
+def count_observations(rinex_observation_file):
+  with open(rinex_observation_file, 'r') as f:
+    content = f.read()
+
+  # looks for lines that start with a sequence of 6 two digit
+  # (possibly whitespace padded) integers that define epoch times.
+  matches = re.findall('\n' + ''.join(['\s{1,2}\d{1,2}'] * 6), content)
+  return len(matches)
 
 
 def split_every(n, iterable):
@@ -709,5 +720,25 @@ def iter_padded_lines(file_or_path, pad=80):
 
 
 def normalize(rinex_obs):
+  """
+  We currently only use raw pseudorange and carrier_phase, this drops
+  any rows where there is a nan in those fields.  In the future more
+  normalization operations can happen here.
+  """
   rinex_obs.dropna(subset=['raw_pseudorange', 'carrier_phase'], inplace=True)
   return rinex_obs
+
+
+def infer_navigation_path(observation_path):
+  """
+  Typically the navigation path for RINEX observation file is the same
+  path with the last character converted from 'o' to 'n'.  This function
+  tries that and returns the navigation path if it exists.
+  """
+  possible_navigation_path, cnt = re.subn('o$', 'n', observation_path)
+  if cnt == 1 and os.path.exists(possible_navigation_path):
+    return possible_navigation_path
+  else:
+    raise ValueError("Couldn't infer navigation path for %s"
+                     % observation_path)
+
