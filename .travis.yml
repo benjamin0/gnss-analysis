@@ -63,7 +63,8 @@ install:
   - pip install -e ./
 
 script:
-  - py.test tests/
+  - py.test -m "not slow" tests/
+  - py.test -m "slow" tests/
 
 after_success:
   - coveralls
