@@ -7,6 +7,7 @@ as possible.
 """
 import logging
 import numpy as np
+import pandas as pd
 
 from swiftnav import dgnss_management
 
@@ -27,8 +28,9 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     self.rover_pos = np.zeros(3)
     # Initialized the ambiguity state
     self.amb_state = dgnss_management.AmbiguityState()
+    self.initialized = False
 
-  def updated_matched_obs(self, rover_obs, base_obs):
+  def update_matched_obs(self, rover_obs, base_obs):
     """
     Updates the swiftnav kalman filter with a new pair of rover and base
     station observations.
@@ -48,9 +50,10 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     # converts the DataFrame to c objects
     sdiff_t = list(dgnss.create_single_difference_objects(sdiffs))
     # update the filter
-
     dgnss_management.dgnss_update_(sdiff_t, self.base_pos,
                                    disable_raim=self.disable_raim)
+    # dgnss_update_ takes care of the initialization logic
+    self.initialized = True
     # update the ambiguities
     dgnss_management.dgnss_update_ambiguity_state_(self.amb_state)
 
@@ -81,5 +84,4 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
     if flag < 0:
       logging.warn("Baseline computation failed with %d" % flag)
       return None
-
-    return baseline
+    return pd.Series(baseline, index=['x', 'y', 'z'])

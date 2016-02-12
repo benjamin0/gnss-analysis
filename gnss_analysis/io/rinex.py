@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from gnss_analysis import time_utils
-from gnss_analysis.io import sbp_utils
+from gnss_analysis.io import common
 
 
 def split_every(n, iterable):
@@ -549,9 +549,13 @@ def build_navigation_parser(header):
     # combine the list of dictionaries into a single dictionary
     # (note that there are faster ways to do this)
     nav_message = {k: v for part in parsed_lines for k, v in part.items()}
-    nav_message['toc'] = convert_to_datetime(nav_message)
+    time_of_clock = convert_to_datetime(nav_message)
+    nav_message['toc'] = time_of_clock
     nav_message['toe'] = time_utils.tow_to_datetime(wn=nav_message['toe_wn'],
                                                     tow=nav_message['toe_tow'])
+    # for RINEX we treat the time of clock as the time the ephemeris as the
+    # epoch which it would have been received.
+    nav_message['epoch'] = time_of_clock
     # N indicates navigation measurements for the GPS system, which
     # we assume below when prepending G to the prn
     assert header['file_type'] == 'N'
@@ -583,6 +587,7 @@ def parse_observation_set(lines, observation_parser):
   df = pd.concat(dfs)
   # add a time column
   df.ix[:, 'time'] = epoch['time']
+  df.ix[:, 'epoch'] = epoch['time']
   df.ix[:, 'raw_doppler'] = np.nan
   # switch to using 'sid' as the index
   df.reset_index(inplace=True)
@@ -609,8 +614,14 @@ def read_observation_file(filelike):
     A dictionary containing attributes held in the header
   observations : generator
     Produces a generator that iterates over observations sets,
-    with one for each epoch.
+    with one for each epoch.  If filelike is None the observations
+    generator will also be None.
   """
+  if filelike is None:
+    # this tuple indicates that a rinex file didn't have
+    # any observations.
+    return {}, None
+
   lines = iter_padded_lines(filelike)
   header = parse_header(lines)
   observation_parser = build_observation_parser(header)
@@ -623,7 +634,7 @@ def read_observation_file(filelike):
       obs = parse_observation_set(lines, observation_parser)
       if not np.all(prev_obs.index == obs.index):
         obs, prev_obs = obs.align(prev_obs, 'left')
-      obs['raw_doppler'] = sbp_utils.tdcp_doppler(prev_obs, obs)
+      obs['raw_doppler'] = common.tdcp_doppler(prev_obs, obs)
       yield obs
 
   return header, iter_observations()
@@ -660,7 +671,8 @@ def read_navigation_file(filelike):
         yield pd.Series(nav_message)
         nav_message = nav_parser(lines)
 
-    for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['toc']):
+    for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['epoch']):
+
       yield pd.DataFrame(list(grp)).set_index('sid')
 
   return header, iter_navigations()

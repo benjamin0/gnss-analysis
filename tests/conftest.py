@@ -9,7 +9,7 @@ import pandas as pd
 
 from distutils import dir_util
 
-from sbp.client.loggers.json_logger import JSONLogIterator
+from gnss_analysis import filters
 
 
 @pytest.fixture
@@ -26,15 +26,15 @@ def datadir(tmpdir):
 
 
 @pytest.fixture
-def jsonlogpath(datadir):
+def piksi_log_path(datadir):
   basename = 'partial_serial-link-20151221-142236.log.json'
   return datadir.join(basename).strpath
 
 
-@pytest.yield_fixture
-def jsonlog(jsonlogpath):
-  with JSONLogIterator(jsonlogpath) as log:
-    yield log
+@pytest.fixture()
+def piksi_observation_sets(piksi_log_path):
+  from gnss_analysis.io import simulate
+  return simulate.simulate_from_log(piksi_log_path)
 
 
 @pytest.yield_fixture
@@ -49,12 +49,12 @@ def hdf5log(datadir):
 
 
 @pytest.fixture()
-def ephemerides(jsonlog):
+def ephemerides(piksi_log_path):
   """
   Loads the first available ephemeris data from log
   """
   from gnss_analysis.io import simulate
-  for state in simulate.simulate_from_log(jsonlog):
+  for state in simulate.simulate_from_log(piksi_log_path):
     if state['ephemeris'].shape[0] >= 4:
       return state['ephemeris']
 
@@ -88,7 +88,7 @@ def synthetic_observation_set(ephemerides):
                                    tot)
 
 @pytest.fixture()
-def synthetic_stationary_states(ephemerides):
+def synthetic_stationary_observations(ephemerides):
   """
   Returns an iterator over synthetic states for which the rover and
   base station are stationary.
@@ -128,3 +128,62 @@ def rinex_base(datadir):
 def rinex_navigation(datadir):
   basename = 'short_baseline_cors/seat032/seat0320.16n'
   return datadir.join(basename).strpath
+
+
+@pytest.fixture
+def rinex_observation_sets(rinex_observation,
+                           rinex_navigation,
+                           rinex_base):
+  from gnss_analysis.io import simulate
+  return simulate.simulate_from_rinex(rinex_observation,
+                                      rinex_navigation,
+                                      rinex_base)
+
+@pytest.fixture
+def cors_drops_reference(datadir):
+  rover = datadir.join('cors_drops_reference/seat032/partial_seat0320.16o').strpath
+  nav = datadir.join('cors_drops_reference/seat032/seat0320.16n').strpath
+  base = datadir.join('cors_drops_reference/ssho032/partial_ssho0320.16o').strpath
+  return rinex_observation_sets(rover, nav, base)
+
+
+@pytest.fixture
+def cors_short_baseline(datadir):
+  rover = datadir.join('short_baseline_cors/seat032/seat0320.16o').strpath
+  nav = datadir.join('short_baseline_cors/seat032/seat0320.16n').strpath
+  base = datadir.join('short_baseline_cors/ssho032/ssho0320.16o').strpath
+  return rinex_observation_sets(rover, nav, base)
+
+
+@pytest.fixture
+def piksi_roof(datadir):
+  log_path = datadir.join('partial_serial-link-20151221-142236.log.json').strpath
+  return piksi_observation_sets(log_path)
+
+
+@pytest.fixture(params=['cors_short_baseline', 'cors_drops_reference', 'piksi'])
+def observation_sets(datadir,
+                     request):
+
+  sets = {'cors_drops_reference': cors_drops_reference,
+          'cors_short_baseline': cors_short_baseline,
+          'piksi': piksi_roof}
+
+  if not request.param in sets:
+    raise NotImplementedError("unhandled observation set type %s"
+                              % request.param)
+
+  return sets[request.param](datadir)
+
+
+# This fixture produces a subset of the observation_sets
+@pytest.fixture(params=['cors_short_baseline', 'cors_drops_reference'])
+def cors_observation_sets(datadir,
+                         request):
+  return observation_sets(datadir, request)
+
+
+@pytest.fixture(params=[filters.StaticKalmanFilter,
+                        filters.DynamicKalmanFilter])
+def dgnss_filter_class(request):
+  return request.param

@@ -8,6 +8,7 @@ from sbp.utils import exclude_fields
 
 from gnss_analysis import constants as c
 from gnss_analysis import time_utils
+from gnss_analysis.io import common
 
 
 def normalize(sbp_obs):
@@ -51,14 +52,6 @@ def get_sid(msg):
     raise AttributeError("msg does not contain a satellite id")
 
 
-def update_gps_time(obs, msg, data):
-  tow = msg.tow / c.MSEC_TO_SECONDS + msg.ns * 1e-9
-  time = pd.DataFrame({'wn': [msg.wn],
-                       'tow': [tow]})
-  obs['time'] = time
-  return obs
-
-
 def update_position(obs, msg, data, suffix):
   """
   Convert the position estimate to a DataFrame and update
@@ -90,8 +83,8 @@ def position_to_dataframe(msg, data):
     and seconds.
   """
   m = exclude_fields(msg)
-  m.update({'host_offset': data['delta'],
-            'host_time': data['timestamp']})
+  host_offset = data['delta']
+  m.update({'host_time': data['timestamp']})
   # The time of week is in milliseconds, convert to seconds
   m['tow'] /= c.MSEC_TO_SECONDS
   # All other measurements are in mm, but we want meters
@@ -101,7 +94,7 @@ def position_to_dataframe(msg, data):
     m['n'] /= c.MM_TO_M
     m['e'] /= c.MM_TO_M
     m['d'] /= c.MM_TO_M
-  return pd.DataFrame(m, index=[m['host_offset']])
+  return pd.DataFrame(m, index=pd.Index([host_offset], name='host_offset'))
 
 
 def observation_to_dataframe(msg, data):
@@ -130,15 +123,19 @@ def observation_to_dataframe(msg, data):
   def extract_observations(obs):
       # notice that in observations the tow is in msecs
       tow = msg.header.t.tow / c.MSEC_TO_SECONDS
+      time = time_utils.tow_to_datetime(wn=msg.header.t.wn,
+                                        tow=tow)
       # Convert pseudorange, carrier phase to SI units.
       v = {'raw_pseudorange': obs.P / c.CM_TO_M,
            'carrier_phase': obs.L.i + obs.L.f / c.Q32_WIDTH,
-           'cn0': obs.cn0,
+           'signal_noise_ratio': obs.cn0,
            'lock_count': obs.lock,
            'host_time': data['timestamp'],
            'host_offset': data['delta'],
-           'time': time_utils.tow_to_datetime(wn=msg.header.t.wn,
-                                              tow=tow),
+           'epoch': time,
+           # piksi propagates all observations to match the epoch
+           # so the epoch and valid time are identical.
+           'time': time
            }
       return v
 
@@ -194,42 +191,6 @@ def ephemeris_to_dataframe(msg, data):
     return eph
 
 
-def tdcp_doppler(old, new):
-  """
-  Compute the doppler by using the time difference of the
-  carrier phase (TDCP).
-
-  Parameters:
-  -----------
-  old : pd.DataFrame
-    A DataFrame holding a previous set of carrier phase
-    observations along with corresponding tow
-  new : pd.DataFrame
-    A DataFrame holding new carrier phase observations
-    along with corresponding tow
-
-  Returns:
-  --------
-  doppler : pd.Series
-    A Series holding the doppler estimates.
-
-  See also: libswiftnav/src/track.c:tdcp_doppler
-  """
-  # TODO: make sure week numbers are the same since we don't
-  #  take them into account yet.  That will require doing some
-  #  NaN comparisons as well.
-  # delta time in seconds
-  dt = time_utils.seconds_from_timedelta(new['time'] - old['time'])
-  # make sure dt is positive.
-  assert not np.any(dt.values <= 0.)
-  # compute the rate of change of the carrier phase
-  doppler = (new.carrier_phase - old.carrier_phase) / dt
-  # mark any computations with differing locks as nan
-  invalid = np.mod(new['lock'], 2) == 1
-  doppler[invalid] = np.nan
-  return doppler
-
-
 def update_ephemeris(obs, msg, data):
   """
   Updates the current obs with a new ephemeris message.
@@ -241,12 +202,12 @@ def update_ephemeris(obs, msg, data):
   updates = ephemeris_to_dataframe(msg, data)
   if not (msg.valid and msg.healthy):
     return obs
-  prev_ephs = obs['ephemeris']
+  prev_ephs = obs.get('ephemeris', None)
   # if no updates, return the original obs
   if updates is None:
     return obs
   # if there is no previous obs return the updates.
-  if prev_ephs.empty:
+  if prev_ephs is None:
     obs['ephemeris'] = updates
     return obs
   # doing align upfront avoid's doing alignment twice
@@ -275,7 +236,7 @@ def update_observation(obs_set, msg, data):
   # determine if the message was from the rover or base and
   # get the previous observations.
   source = get_source(msg)
-  prev_obs = obs_set[source]
+  prev_obs = obs_set.get(source, pd.DataFrame())
   if (logging.getLogger().getEffectiveLevel() == logging.DEBUG
       and not np.all(prev_obs.index == new_obs.index)):
     added = set(new_obs.index.values).difference(set(prev_obs.index.values))
@@ -287,7 +248,7 @@ def update_observation(obs_set, msg, data):
   # update the doppler information.
   lock_changed = (new_obs['lock_count'] != prev_obs['lock_count']).astype('int')
   new_obs['lock'] = lock_changed
-  new_obs['raw_doppler'] = tdcp_doppler(prev_obs, new_obs)
+  new_obs['raw_doppler'] = common.tdcp_doppler(prev_obs, new_obs)
   # the actual doppler is the raw_doppler + clock_rate_err * GPS_L1_HZ
   # but since we don't know the clock_rate_err yet we leave that for later.
   obs_set[source] = new_obs

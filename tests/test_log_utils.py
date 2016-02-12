@@ -11,20 +11,18 @@ import mock
 import pytest
 import numpy as np
 
-import sbp.observation as ob
-
 from sbp.msg import SBP
 from sbp.client.loggers.json_logger import JSONLogIterator
 
 from gnss_analysis import log_utils
 
 
-def test_runs(jsonlog):
+def test_runs(piksi_log_path):
   """
   Straight forward test that simply makes sure the test log can
   be parsed without failure.
   """
-  for msg, data in log_utils.complete_messages_only(jsonlog.next()):
+  for msg, data in log_utils.complete_messages_only(piksi_log_path):
     pass
 
 
@@ -65,7 +63,7 @@ def test_is_split_message():
     assert log_utils.is_split_message(msg) == expected
 
 
-def test_log_iterator(jsonlogpath):
+def test_log_iterator(piksi_log_path):
   """
   Make sure log_iterator returns an iterator over messages
   and data if you pass in a path, log_iterator or log_iterator.next()
@@ -76,12 +74,12 @@ def test_log_iterator(jsonlogpath):
     assert isinstance(msg, SBP)
     assert isinstance(data, dict)
 
-  assert_is_log_iterator(log_utils.log_iterator(jsonlogpath))
+  assert_is_log_iterator(log_utils.log_iterator(piksi_log_path))
 
-  with JSONLogIterator(jsonlogpath) as log:
+  with JSONLogIterator(piksi_log_path) as log:
     assert_is_log_iterator(log_utils.log_iterator(log))
 
-  with JSONLogIterator(jsonlogpath) as log:
+  with JSONLogIterator(piksi_log_path) as log:
     assert_is_log_iterator(log_utils.log_iterator(log.next()))
 
 

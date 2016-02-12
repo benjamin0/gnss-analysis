@@ -1,37 +1,34 @@
 import pytest
 import numpy as np
 
-from gnss_analysis.io import simulate, rinex
-from gnss_analysis import locations, solution
-from gnss_analysis.filters import kalman_filter, swiftnav_filter
-
-
-@pytest.fixture()
-def dgnss_filter():
-  # TODO: Eventually use py.test parameterize to iterate over all filters
-  return kalman_filter.StaticKalmanFilter(base_pos=locations.LEICA_ABSOLUTE)
+from gnss_analysis import filters
+from gnss_analysis import solution
+from gnss_analysis import locations
 
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_reasonable_and_doesnt_diverge(synthetic_stationary_states,
-                                       dgnss_filter):
+def test_reasonable_and_doesnt_diverge(synthetic_stationary_observations,
+                                       dgnss_filter_class):
   """
   Uses noise free synthetic data ane makes sure the filter is
   converging and ends up with reasonably small error after a
   small number of iterations.
   """
+  obs_sets = [y for _, y in zip(range(40), synthetic_stationary_observations)]
+  base_pos = obs_sets[0]['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
+  dgnss_filter = dgnss_filter_class(base_pos=base_pos)
   # Here we iterate over some number of baseline solutions and
   # report the error relative to the known baseline
   def iter_errors():
-    for _, state in zip(range(40), synthetic_stationary_states):
-      base_ecef = state['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
-      rover_ecef = state['rover'][['ref_x', 'ref_y', 'ref_z']].values[0]
+    for obs_set in obs_sets:
+      base_ecef = obs_set['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
+      rover_ecef = obs_set['rover'][['ref_x', 'ref_y', 'ref_z']].values[0]
       expected_baseline = rover_ecef - base_ecef
 
       # update the filter and compute the baseline
-      dgnss_filter.update(state)
-      bl = dgnss_filter.get_baseline(state)
+      dgnss_filter.update(obs_set)
+      bl = dgnss_filter.get_baseline(obs_set)
       yield bl - expected_baseline
 
   # Then we solve for the slope of the error magnitude and make
@@ -48,18 +45,22 @@ def test_reasonable_and_doesnt_diverge(synthetic_stationary_states,
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_eventually_gets_synthetic_baseline(synthetic_stationary_states,
-                                            dgnss_filter):
+def test_eventually_gets_synthetic_baseline(synthetic_stationary_observations,
+                                            dgnss_filter_class):
 
   def assert_matches_at_some_point():
-    for i, state in enumerate(synthetic_stationary_states):
-      base_ecef = state['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
-      rover_ecef = state['rover'][['ref_x', 'ref_y', 'ref_z']].values[0]
+    for i, obs_set in enumerate(synthetic_stationary_observations):
+
+      base_ecef = obs_set['base'][['ref_x', 'ref_y', 'ref_z']].values[0]
+      rover_ecef = obs_set['rover'][['ref_x', 'ref_y', 'ref_z']].values[0]
       expected_baseline = rover_ecef - base_ecef
 
+      if i == 0:
+        dgnss_filter = dgnss_filter_class(base_pos=base_ecef)
+
       # update the filter and compute the baseline
-      dgnss_filter.update(state)
-      bl = dgnss_filter.get_baseline(state)
+      dgnss_filter.update(obs_set)
+      bl = dgnss_filter.get_baseline(obs_set)
       if not bl is None and i > 1:
         # check to see if the estimated baseline is close to the expected one
         # if it is close we break out of the for loop and consider the test
@@ -78,121 +79,81 @@ def test_eventually_gets_synthetic_baseline(synthetic_stationary_states,
 
 
 @pytest.mark.skipif(True, reason="The swiftnav baseline quickly diverges.")
-def test_matches_libswiftnav(synthetic_stationary_states, dgnss_filter):
+def test_matches_libswiftnav(synthetic_stationary_observations):
 
-  swift_filter = swiftnav_filter.SwiftNavDGNSSFilter(disable_raim=True,
+  for i, obs_set in zip(range(10), synthetic_stationary_observations):
+    if i == 0:
+      swift_filter = filters.SwiftNavDGNSSFilter(disable_raim=True,
                                              base_pos=locations.LEICA_ABSOLUTE)
-
-  for _, state in zip(range(10), synthetic_stationary_states):
+      simple_filter = filters.StaticKalmanFilter(base_pos=locations.LEICA_ABSOLUTE)
     # This test fails because this baseline rapidly diverges.  It'll pass
     # for the first iteration, but then error out
-    swift_filter.update(state)
-    swift_bl = swift_filter.get_baseline(state)
+    swift_filter.update(obs_set)
+    swift_bl = swift_filter.get_baseline(obs_set)
 
     # update the filter and compute the baseline
-    dgnss_filter.update(state)
-    bl = dgnss_filter.get_baseline(state)
+    simple_filter.update(obs_set)
+    bl = simple_filter.get_baseline(obs_set)
 
     # for now we'll behappy if the tow agree within a meter.
-    # np.testing.assert_allclose(bl, swift_bl, atol=1)
+    np.testing.assert_allclose(bl, swift_bl, atol=1)
 
 
 @pytest.mark.skipif(True, reason="Can't match the piksi yet!")
-def test_matches_piksi_logs(jsonlog, dgnss_filter):
+def test_matches_piksi_logs(piksi_roof):
 
-  for state in solution.solution(simulate.simulate_from_log(jsonlog),
-                                 dgnss_filter):
+  swift_filter = filters.SwiftNavDGNSSFilter(disable_raim=True,
+                                             base_pos=locations.LEICA_ABSOLUTE)
+  for obs_set in solution.solution(piksi_roof, swift_filter):
     # check that the single point positions match.
-    np.testing.assert_allclose(state['rover_spp_ecef'][['x', 'y', 'z']].values[0],
-                               state['rover_pos']['pos_ecef'],
-                               atol=0.001)
+    np.testing.assert_allclose(obs_set['rover_spp_ecef'][['x', 'y', 'z']].values[0],
+                               obs_set['rover_pos'][['x', 'y', 'z']].values,
+                               atol=0.2, rtol=1e-1)
     # if the python solver returned a non none baseline and
     # the piksi logged an rtk solution we check to see if the
     # two agree.
-    if (state['rover_pos'].get('baseline', None) is not None and
-        'rover_rtk_ned' in state):
-      baseline = state['rover_pos']['baseline']
-      piksi_baseline = state['rover_rtk_ned'][['n', 'e', 'd']]
+    if ('baseline_x' in obs_set['rover_pos'] and
+        'rover_rtk_ned' in obs_set):
+      baseline = obs_set['rover_pos'][['baseline_x',
+                                       'baseline_y',
+                                       'baseline_z']].values
+      piksi_baseline = obs_set['rover_rtk_ecef'][['x', 'y', 'z']]
 
       print "piksi", piksi_baseline.values
       print "python", baseline
       print "actual", locations.NOVATEL_BASELINE
 
+
 @pytest.mark.slow
 @pytest.mark.regression
-@pytest.mark.parametrize('filter_class', [kalman_filter.StaticKalmanFilter,
-                                          kalman_filter.DynamicKalmanFilter])
-def test_cors_baseline(datadir, filter_class):
+def test_cors_baseline(cors_observation_sets, dgnss_filter_class):
   """
   Tests that the filter is capable of estimating the baseline for the
   cors short baseline to less than 1m accuracy within a reasonable
   amount of time.
   """
-
-  rov = datadir.join('short_baseline_cors/seat032/seat0320.16o').strpath
-  nav = datadir.join('short_baseline_cors/seat032/seat0320.16n').strpath
-  base = datadir.join('short_baseline_cors/ssho032/ssho0320.16o').strpath
-
-  states = simulate.simulate_from_rinex(rov, nav, base)
-  rover_lines = rinex.iter_padded_lines(rov)
-  rover_header = rinex.parse_header(rover_lines)
-  base_lines = rinex.iter_padded_lines(base)
-  base_header = rinex.parse_header(base_lines)
-
-  rover_pos = np.array([rover_header['x'],
-                        rover_header['y'],
-                        rover_header['z']])
-  base_pos = np.array([base_header['x'],
-                       base_header['y'],
-                       base_header['z']])
+  # Extract the known positions from the info attributes
+  first = cors_observation_sets.next()
+  rover_pos = np.array([first['rover_info']['x'],
+                        first['rover_info']['y'],
+                        first['rover_info']['z']])
+  base_pos = np.array([first['base_info']['x'],
+                       first['base_info']['y'],
+                       first['base_info']['z']])
   expected_baseline = rover_pos - base_pos
-
-  dgnss_filter = filter_class(base_pos=base_pos)
+  dgnss_filter = dgnss_filter_class(base_pos=base_pos)
 
   # This iterates over solutions until the baseline gets within
   # one meter of the known solution at which point it will return True.
   # If that never happens it returns False
   def eventually_close():
-    for _, soln in zip(range(100), solution.solution(states, dgnss_filter)):
-      bl = soln['rover_pos']['baseline']
+    for _, soln in zip(range(100), solution.solution(cors_observation_sets,
+                                                     dgnss_filter)):
+      bl = soln['rover_pos'][['baseline_x',
+                              'baseline_y',
+                              'baseline_z']].values
       if np.linalg.norm(bl - expected_baseline) <= 1.:
         return True
     return False
 
   assert eventually_close()
-
-
-@pytest.mark.slow
-@pytest.mark.regression
-def test_cors_drops_reference(datadir, dgnss_filter):
-  """
-  Tests that the filter is capable of estimating the baseline for the
-  cors short baseline to less than 1m accuracy within a reasonable
-  amount of time.
-  """
-
-  rov = datadir.join('cors_drops_reference/seat032/partial_seat0320.16o').strpath
-  nav = datadir.join('cors_drops_reference/seat032/seat0320.16n').strpath
-  base = datadir.join('cors_drops_reference/ssho032/partial_ssho0320.16o').strpath
-
-  states = simulate.simulate_from_rinex(rov, nav, base)
-  rover_lines = rinex.iter_padded_lines(rov)
-  rover_header = rinex.parse_header(rover_lines)
-  base_lines = rinex.iter_padded_lines(base)
-  base_header = rinex.parse_header(base_lines)
-
-  rover_pos = np.array([rover_header['x'],
-                        rover_header['y'],
-                        rover_header['z']])
-  base_pos = np.array([base_header['x'],
-                       base_header['y'],
-                       base_header['z']])
-  expected_baseline = rover_pos - base_pos
-
-  dgnss_filter = kalman_filter.StaticKalmanFilter(base_pos=base_pos)
-
-  solns = list(solution.solution(states, dgnss_filter))
-  err = np.linalg.norm(solns[-1]['rover_pos']['baseline'] - expected_baseline)
-  # this dataset doesn't have many observations so we just make sure the
-  # baseline is reasonable.
-  assert err <= 2.

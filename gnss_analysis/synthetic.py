@@ -111,7 +111,6 @@ def observation(ephemerides, location_ecef, toa,
   obs['ref_z'] = location_ecef[2]
   obs['ref_t'] = toa
   obs['ref_rover_clock_error'] = rover_clock_error
-
   return obs
 
 

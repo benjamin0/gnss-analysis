@@ -39,7 +39,8 @@ class DGNSSFilter(object):
     """
     if not self.base_known:
       # TODO: on the piksi this position has a low pass filter applied.
-      self.base_pos = solution.single_point_position(base_obs)['pos_ecef']
+      spp = solution.single_point_position(base_obs)
+      self.base_pos = spp[['x', 'y', 'z']].values
 
   def get_single_diffs(self, rover_obs, base_obs, propagate_base=False):
     """
@@ -183,8 +184,8 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
     rover_obs = self._pop_from_buffer(toa)
     # If no observations were found, issue a warning and return
     if rover_obs is None:
-      logging.warn("No rover observations available for %f" % toa)
-      return
+      logging.warn("No rover observations available for %s" % toa)
+      return False
 
     # this should be checked before calling this function, make sure
     assert not rover_obs.empty
@@ -202,3 +203,4 @@ class TimeMatchingDGNSSFilter(DGNSSFilter):
     # to the same time of arrival, we pass them on to the implementing
     # filter.
     self.update_matched_obs(rover_obs, base_obs)
+    return True

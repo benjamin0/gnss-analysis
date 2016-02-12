@@ -84,7 +84,7 @@ import sbp.navigation as nav
 import sbp.observation as ob
 
 from gnss_analysis import log_utils
-from gnss_analysis.io import sbp_utils, rinex
+from gnss_analysis.io import sbp_utils, rinex, hdf5
 
 
 def get_unique_value(x):
@@ -127,6 +127,9 @@ def simulate_from_log(log, initial_observation_set={}):
 
     A set of observations is emitted for each observed rover epoch.
   """
+  # TODO: We could reformulate the way sbp logs are read to match the
+  #   (header, iterator) form used by rinex / hdf5 which would result
+  #   in all these simulate functions using the same alignment logic.
   _processors = {ob.MsgObs: sbp_utils.update_observation,
                  ob.MsgObsDepA: sbp_utils.update_observation,
                  ob.MsgEphemeris: sbp_utils.update_ephemeris,
@@ -139,12 +142,13 @@ def simulate_from_log(log, initial_observation_set={}):
                  nav.MsgBaselineNED: partial(sbp_utils.update_position,
                                              suffix='rtk_ned'),
                  nav.MsgBaselineECEF: partial(sbp_utils.update_position,
-                                              suffix='rtk_ecef'),
-                 nav.MsgGPSTime: sbp_utils.update_gps_time}
+                                              suffix='rtk_ecef')}
+                # because the piksi propagates all observations to the epoch
+                # we actively ignore the gps time messages that hold the
+                # time from the SPP solve since it doesn't correspond to the
+                # solution time we would get using the sent observations.
 
   default_obs_set = {'rover': pd.DataFrame(),
-                     'base': pd.DataFrame(),
-                     'ephemeris': pd.DataFrame(),
                      'rover_info': {'original_format': 'sbp',
                                     'reciever_offset_applied': True},
                      'base_info': {'original_format': 'sbp',
@@ -164,12 +168,108 @@ def simulate_from_log(log, initial_observation_set={}):
         if 'ephemeris' in obs_set:
           # yield a copy so we don't accidentally modify things.
           obs_set_copy = copy.deepcopy(obs_set)
-          obs_set_copy['epoch'] = get_unique_value(obs_set['rover']['time'])
-          obs_set_copy['ephemeris']['time'] = obs_set_copy['epoch']
+          obs_set_copy['epoch'] = get_unique_value(obs_set['rover']['epoch'])
+          obs_set_copy['rover'].drop('epoch', axis=1, inplace=True)
+          if 'base' in obs_set_copy:
+            obs_set_copy['base'].drop('epoch', axis=1, inplace=True)
           yield obs_set_copy
     else:
       logging.debug("No processor available for message type %s"
                     % type(msg))
+
+
+def simulate_from_iterators(rover, **kwdargs):
+  """
+  Creates an iterator of observation sets, one for each epoch
+  in the rover observations.
+  
+  This function is intended to perform the epoch alignment for
+  multiple different input formats.
+  
+  Parameters
+  ----------
+  rover : (header_info, observation_iterator)
+    rover (and all subsequent observations) are expected to be
+    a tuple of header_info dictionary and observation iterator.
+    The header_info should be a dictionary holding any information
+    required to help interpret the observations.  The observation
+    iteratator is intended to be an iterator that yields
+    pd.DataFrame objects that correspond to observations for a
+    particular epoch in chronological order.
+
+  
+  """
+  rover_info, iter_rover_obs = rover
+  # a dictionary of iterators from which we pull observations
+  iterators = {k: iter_obs for k, (info, iter_obs) in kwdargs.iteritems()
+               if iter_obs is not None}
+
+  obs_set = {'rover_info': rover_info}
+  # add all the information dictionaries from other observations
+  obs_set.update({'%s_info' % k: info
+                  for k, (info, iter_obs) in kwdargs.iteritems()})
+
+  # a dictionary holding all the next observations for each group
+  next_obs = {k: v.next() for k, v in iterators.iteritems()}
+
+  def maybe_use_next(group_name, cur_obs_set, update=False):
+    # If the next navigation message comes before
+    # the current rover observation we update the obs_set
+    while np.any(next_obs[group_name]['epoch'] <= cur_obs_set['epoch']):
+      # the epoch attribute is stored at the root level of an
+      # observaiton set, rather than worry about keeping all observations
+      # consistent we drop the epoch variable from the observation
+      if 'time' in next_obs[group_name]:
+        try:
+          assert np.all(next_obs[group_name]['time'] <= cur_obs_set['epoch'])
+        except:
+          import ipdb; ipdb.set_trace()
+      no_epoch = next_obs[group_name].drop('epoch', axis=1)
+      if update and group_name in cur_obs_set:
+        # this is used for ephemeris information which typically
+        # arrives gradually.  Rather than overwritting the current
+        # observations we want to add (update) the new ones.
+        old, new = cur_obs_set[group_name].align(no_epoch, 'outer')
+        cur_obs_set[group_name].update(no_epoch)
+      else:
+        # for most situations we want to completely overwrite
+        # the current observations with the new ones.
+        cur_obs_set[group_name] = no_epoch
+      # Try and get the next observation.  If there aren't
+      # any more we simply break out and continue with the most
+      # recent.  It'll be up to the user to realize it is old and
+      # decide if it's still usable.
+      try:
+        next_obs[group_name] = iterators[group_name].next()
+      except StopIteration:
+        # If a given iterator runs out of items we don't want the
+        # entire generator function to stop, we'd like to continue
+        # until we run out of rover observations.
+        logging.debug("Exhausted all %s observations" % group_name)
+        break
+
+  # The goal is to produce a generator that yields an obs
+  # for each observed rover epoch.  Here we iterate over
+  # rover epoch's and search for the corresponding base and
+  # ephemeris messages.
+  for rover_obs in iter_rover_obs:
+    # Each rover observation should have a unique epoch time,
+    # we use that to sync up the rest of the observations.
+    # The resulting observaiton set should have only the most
+    # recent observations
+    obs_set['epoch'] = get_unique_value(rover_obs['epoch'])
+    # update the rover obs
+    obs_set['rover'] = rover_obs.drop('epoch', axis=1)
+
+    # For all other observations we compare the time they
+    # were observed to the current epoch and update accordingly.
+    for group in iterators.keys():
+      maybe_use_next(group, obs_set, update=group == 'ephemeris')
+
+    # and return a copy of the dict (though not a deep copy since
+    # that causes uneccesary overhead.
+    yield copy.deepcopy(obs_set)
+
 
 
 def simulate_from_rinex(rover, navigation, base=None):
@@ -179,47 +279,38 @@ def simulate_from_rinex(rover, navigation, base=None):
   which contains the most recent ephemeris and base
   observations up to that epoch.
   """
+  return simulate_from_iterators(rover=rinex.read_observation_file(rover),
+                                 ephemeris=rinex.read_navigation_file(navigation),
+                                 base=rinex.read_observation_file(base))
 
-  # Here we initialize with the first navigation message.
-  nav_header, iter_nav = rinex.read_navigation_file(navigation)
-  obs_set = {'ephemeris': iter_nav.next(),
-             'ephemeris_info': nav_header}
-  next_nav = iter_nav.next()
 
-  # Read the rover file
-  rover_header, iter_rover = rinex.read_observation_file(rover)
-  obs_set['rover_info'] = rover_header
+def simulate_from_hdf5(hdf5_file):
+  """
+  Creates an iterable of observation sets from an HDF5 file.
+  This is done by creating iterators which yield rover, ephemeris
+  and base observations by epoch then using simulate_from_iterators
+  to perform epoch alignment.
+  
+  Parameters
+  ----------
+  hdf5_file : string
+    The path to an HDF5 file.
+  
+  Returns
+  -------
+  observation_sets : generator
+    A generator which yields observation sets, one for each epoch
+    stored in the rover group of the HDF5 file.
+  """
 
-  # The base observation file is optional.
-  if base is not None:
-    base_header, iter_base = rinex.read_observation_file(base)
-    next_base = iter_base.next()
-    obs_set['base_info'] = base_header
+  with pd.HDFStore(hdf5_file, mode='r') as store:
+    # determine all the available groups
+    keys = [x.strip('/') for x in store.keys()]
+    assert 'rover' in keys
 
-  # The goal is to produce a generator that yields an obs
-  # for each observed rover epoch.  Here we iterate over
-  # rover epoch's and search for the corresponding base and
-  # ephemeris messages.
-  for rover_obs in iter_rover:
-    obs_set['epoch'] = get_unique_value(rover_obs['time'])
-    # We assume that the ephemeris should never be
-    # newer than the rover observation.
-    assert obs_set['ephemeris']['toc'][0] <= rover_obs['time'][0]
-    # If the next navigation message comes before
-    # the current rover observation we update the obs_set
-    while np.any(next_nav['toc'] <= obs_set['epoch']):
-      obs_set['ephemeris'].update(next_nav)
-      next_nav = iter_nav.next()
-    # If we are using a base station we search for the
-    # most recent base observation that came at or before the
-    # rover epoch.
-    if base is not None:
-      while get_unique_value(next_base['time']) <= obs_set['epoch']:
-        obs_set['base'] = next_base
-        next_base = iter_base.next()
-    # update the rover obs
-    obs_set['rover'] = rover_obs
-    # and return a copy of the dict (though not a deep copy since
-    # that causes uneccesary overhead.
-
-    yield copy.deepcopy(obs_set)
+    # this creates a header, iterator tuple for each group
+    kwdargs = {k: hdf5.read_group(store, k) for k in keys}
+    # We iterate over this (instead of just returning the generator)
+    # in order to keep the hdf5 file open.
+    for obs_set in  simulate_from_iterators(**kwdargs):
+      yield obs_set

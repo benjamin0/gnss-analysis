@@ -206,10 +206,12 @@ def single_point_position(obs, max_iterations=15, tol=1e-4):
   pos_ecef = cur_x[:3]
   time = toa + time_utils.timedelta_from_seconds(cur_x[3])
 
-  return {'pos_ecef': pos_ecef,
-          'time': time,
-          'clock_offset': cur_x[3],
-          'converged': converged}
+  return pd.DataFrame({'x': pos_ecef[0],
+                       'y': pos_ecef[1],
+                       'z': pos_ecef[2],
+                       'clock_offset': cur_x[3],
+                       'converged': converged},
+                      index=pd.Index([time], name='time'))
 
 
 def solution(obs_sets, dgnss_filter=None):
@@ -237,21 +239,28 @@ def solution(obs_sets, dgnss_filter=None):
     # The next step in piksi_firmware computes the doppler, but that has
     # already been done in the simulate module.
 
-    # compute the single point position
+    # compute and store the single point position
     obs_set['rover_pos'] = single_point_position(obs_set['rover'])
 
     # TODO: WIP, plug in DGNSS filters here.
     # if a filter is present and we have enough base observations
     # to compute a position from them.
     if (dgnss_filter is not None and
+        'base' in obs_set and
         can_compute_position(obs_set['base'])):
       obs_set['base'] = ephemeris.add_satellite_state(obs_set['base'],
                                                       obs_set['ephemeris'])
       # Update the filter with the new obs_set
-      dgnss_filter.update(obs_set)
       # TODO: if low-latency make propagated sdiffs
+      updated = dgnss_filter.update(obs_set)
       # NOTE: at this point on the piksi baseline messages are output.
-      obs_set['rover_pos']['baseline'] = dgnss_filter.get_baseline(obs_set)
-
+      if updated and dgnss_filter.initialized:
+        baseline = dgnss_filter.get_baseline(obs_set)
+        baseline.rename({k: 'baseline_%s' % k for k in baseline.index},
+                        inplace=True)
+        # upgrade to a DataFrame
+        baseline = pd.DataFrame([baseline], index=obs_set['rover_pos'].index)
+        # and join with the rover_pos
+        obs_set['rover_pos'] = obs_set['rover_pos'].join(baseline)
     # NOTE: only now are observations sent from the piksi
     yield obs_set
