@@ -105,25 +105,19 @@ def simulate_from_log(log, initial_observation_set={}):
 
   Parameters
   ----------
-  log : sbp.base_logger.LogIterator
-    An sbp log iterator that should yield msg, data pairs.
-    NOTE!!! JSONLogIterator incorrectly iterates, so you
-    actually need to pass in JSONLogIterator().next() to
-    this method.
+  log : string (or sbp.base_logger.LogIterator)
+    The path to an sbp log, or optionally an instance of
+    sbp.client.loggers.JSONLogIterator.
   initial_observation_set : (optional) dict
     An optional dictionary containing the observations at the
-    epoch immediately before logging.  This allows the user
+    epoch immediately before logging starts.  This allows the user
     to bootstrap simulation or set default header information.
 
   Returns
   -------
   obs_sets : generator
-    A generator which yields observations for each epoch.
-    Each obs_set dict is keyed by source ('rover', 'base', 'ephemeris')
-    and then indexed by satellite id.  For example,
-    obs_sets.next()['rover'].ix[16] would contain a Series holding
-    the rover stations observations of satellite 16 at the first
-    reported epoch.
+    A generator which yields observation sets for each epoch.
+    See simulate.py for a description of observation sets.
 
     A set of observations is emitted for each observed rover epoch.
   """
@@ -272,13 +266,15 @@ def simulate_from_iterators(rover, **kwdargs):
 
 
 
-def simulate_from_rinex(rover, navigation, base=None):
+def simulate_from_rinex(rover, navigation=None, base=None):
   """
   Takes filelike objects for rover, navigation and base files
   and generates observations for each epoch in the rover files
   which contains the most recent ephemeris and base
   observations up to that epoch.
   """
+  if navigation is None:
+    navigation = rinex.infer_navigation_path(rover)
   return simulate_from_iterators(rover=rinex.read_observation_file(rover),
                                  ephemeris=rinex.read_navigation_file(navigation),
                                  base=rinex.read_observation_file(base))
@@ -312,5 +308,5 @@ def simulate_from_hdf5(hdf5_file):
     kwdargs = {k: hdf5.read_group(store, k) for k in keys}
     # We iterate over this (instead of just returning the generator)
     # in order to keep the hdf5 file open.
-    for obs_set in  simulate_from_iterators(**kwdargs):
+    for obs_set in simulate_from_iterators(**kwdargs):
       yield obs_set

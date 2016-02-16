@@ -1,3 +1,4 @@
+import re
 import logging
 import numpy as np
 import pandas as pd
@@ -9,6 +10,15 @@ from sbp.utils import exclude_fields
 from gnss_analysis import constants as c
 from gnss_analysis import time_utils
 from gnss_analysis.io import common
+
+
+def count_rover_observation_messages(input_path):
+  with open(input_path, 'r') as f:
+    content = f.read()
+  # find all message types that are observations and have a non zero
+  # sender (which implies it's a rover observation).
+  matches = re.findall('\"sender\": [^0]{1,5} \"msg_type\": 67', content)
+  return len(matches)
 
 
 def normalize(sbp_obs):
