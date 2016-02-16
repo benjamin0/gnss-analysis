@@ -179,7 +179,7 @@ def observation_sets(datadir,
 
 
 # This fixture produces a subset of the observation_sets
-@pytest.fixture(params=['cors_short_baseline', 'cors_drops_reference'])
+@pytest.fixture(params=['cors_short_baseline'])
 def cors_observation_sets(datadir,
                           request):
   return observation_sets(datadir, request)
