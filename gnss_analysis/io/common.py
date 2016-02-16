@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 
 from gnss_analysis import time_utils
@@ -43,3 +44,51 @@ def tdcp_doppler(old, new):
   invalid = np.mod(new['lock'], 2) == 1
   doppler[invalid] = np.nan
   return doppler
+
+
+def create_sid(constellation, sat, band):
+  """
+  The satellite id (sid) is a unique identifier of a satellite signal
+  which is created by combining a satellite (which typically consists
+  of a constellation identifier followed by satellite number) and the
+  band.  For example: 'G12-2' would be the L2 signal from GPS constellation
+  12.
+  """
+  sat = np.asarray(sat).astype('S')
+  band = np.asarray(band).astype('S')
+  constellation = np.asarray(constellation).astype('S')
+  return reduce(np.char.add, [constellation, '-', sat, '-', band])
+
+
+def normalize(observation):
+  """
+  Enforces some standard structure for observation DataFrames.  This
+  includes making sure the index is a unique satellite identifier.
+  
+  This function modifies in place.
+  """
+  # push the index into the variables in case it's required.
+  observation.reset_index(inplace=True)
+  # create sids from constellation, satellite number and band.
+  sids = create_sid(observation['constellation'],
+                    observation['sat'],
+                    observation['band'])
+  # make sure the sids are unique, then store them
+  assert np.unique(sids).size == sids.size
+  observation.ix[:, 'sid'] = sids
+  # switch to using 'sid' as the index
+  observation.set_index('sid', inplace=True)
+
+  if np.any(observation['constellation'].values != 'GPS'):
+    warnings.warn("Removing all non-GPS satellites.  Multiconstellation"
+                  " isn't quite supported yet.")
+    not_gps = observation['constellation'].values != 'GPS'
+    # setting constellation to nan then dropping them below
+    observation.ix[not_gps, 'constellation'] = np.nan
+
+  # drop any observations where variables in 'subset' are nan.
+  subset = ['raw_pseudorange', 'constellation']
+  subset = observation.columns.intersection(subset)
+  observation.dropna(how='any', subset=subset, inplace=True)
+
+  return observation

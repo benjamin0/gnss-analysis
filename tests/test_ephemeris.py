@@ -9,6 +9,7 @@ from swiftnav import ephemeris as swiftnav_ephemeris
 import gnss_analysis.constants as c
 
 from gnss_analysis import ephemeris, observations, locations, time_utils
+from gnss_analysis.io import common
 
 
 def test_calc_sat_state(ephemerides):
@@ -84,42 +85,53 @@ def test_sagnac_rotation(ephemerides):
                                        maybe_orig, decimal=6)
 
 
-def test_update_columns():
+def test_join_common_sats():
   one = pd.DataFrame({'one': np.arange(5.),
                       'shared': np.arange(5.) + 2},
-                      index=np.arange(5))
+                      index=pd.Index(np.arange(5), name='sid'))
+  one['constellation'] = 'GPS'
+  one['band'] = 1
+
   two = pd.DataFrame({'shared': np.arange(1, 6.) + 2,
                       'two': np.arange(1, 6.) + 3},
-                     index=np.arange(1, 6))
+                     index=pd.Index(np.arange(1, 6), name='sid'))
+  two['constellation'] = 'GPS'
+  two['band'] = 1
 
   expected = pd.DataFrame({'one': np.arange(1, 5.),
                            'shared': np.arange(1, 5.) + 2,
                            'two': np.arange(1, 5.) + 3},
-                      index=np.arange(1, 5))
+                      index=pd.Index(np.arange(1, 5), name='sid'))
+  expected['constellation'] = 'GPS'
+  expected['band'] = 1
 
-  actual = ephemeris._update_columns(one, two)
+  actual = ephemeris._join_common_sats(one, two)
   assert np.all(actual == expected)
 
   # try again with a nan in the mix
   one['one'].values[2] = np.nan
   expected['one'].values[1] = np.nan
-  actual = ephemeris._update_columns(one, two)
-  np.testing.assert_array_equal(actual.values, expected.values)
+  actual = ephemeris._join_common_sats(one, two)
+  np.testing.assert_array_equal(actual.drop('constellation', axis=1).values,
+                                expected.drop('constellation', axis=1).values)
 
   # make sure that if one is a subset of two all the values of
   # are updated.
   one = two.copy()
-  one.values[:] += np.random.normal(size=one.shape)
-  should_be_two = ephemeris._update_columns(one, two)
-  np.testing.assert_array_equal(should_be_two.values, two.values)
+  is_float =  (one.dtypes == 'float64').values
+  one.values[:, is_float] += np.random.normal()
+  should_be_two = ephemeris._join_common_sats(one, two)
+  np.testing.assert_array_equal(should_be_two.drop('constellation', axis=1).values,
+                                two.drop('constellation', axis=1).values)
 
   # make sure even when none of the columns for one are used, the
   # inner set of indices still is
   one = two.copy()
   one = one.iloc[1:]
-  one.values[:] += np.random.normal(size=one.shape)
-  missing_row = ephemeris._update_columns(one, two)
-  np.testing.assert_array_equal(missing_row.values, two.iloc[1:].values)
+  one.values[:, is_float] += np.random.normal()
+  missing_row = ephemeris._join_common_sats(one, two)
+  np.testing.assert_array_equal(missing_row.drop('constellation', axis=1),
+                                two.iloc[1:].drop('constellation', axis=1))
 
 
 def test_add_satellite_state(ephemerides):
@@ -145,20 +157,28 @@ def test_add_satellite_state(ephemerides):
   expected['pseudorange'] += expected.sat_clock_error * c.GPS_C
   expected['doppler'] = expected['raw_doppler'].copy()
   expected['doppler'] += expected.sat_clock_error_rate * c.GPS_L1_HZ
+  expected.reset_index()
+  expected['constellation'] = 'GPS'
+  expected['band'] = 1
+  expected = common.normalize(expected)
 
-  expect_copy = expected.copy()
 
   def equals_expected(to_test):
     _, to_test = expected.align(to_test, 'left')
+
     for (k, x), (_, y) in zip(expected.iteritems(),
                               to_test.iteritems()):
-      diff = x - y
       # diff is a time delta
-      if diff.dtype.kind == 'm':
+      if x.dtype.kind == 'M':
+        diff = x - y
         if np.any(np.abs(diff) > np.timedelta64(1, 'ns')):
           print "value for %s don't agree" % k
           return False
+      elif x.dtype.kind == 'O':
+        # string comparisons must be equal
+        np.testing.assert_array_equal(x.values, y.values)
       else:
+        diff = x - y
         # otherwise for float value we look for values
         # that agree up to 5 decimals.
         if np.any(np.abs(diff) > 1e-5):
@@ -167,9 +187,13 @@ def test_add_satellite_state(ephemerides):
     return True
 
   orig = ephemerides.copy()
-  orig['raw_pseudorange'] = expected['raw_pseudorange'].copy()
-  orig['raw_doppler'] = expected['raw_doppler'].copy()
+  orig['raw_pseudorange'] = expected['raw_pseudorange'].values.copy()
+  orig['raw_doppler'] = expected['raw_doppler'].values.copy()
   orig['time'] = ref_time.copy()
+  orig.reset_index()
+  orig['constellation'] = 'GPS'
+  orig['band'] = 1
+  orig = common.normalize(orig)
 
   actual = ephemeris.add_satellite_state(orig)
   assert equals_expected(actual)

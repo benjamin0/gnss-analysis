@@ -11,6 +11,7 @@ from gnss_analysis import dgnss
 from gnss_analysis import ephemeris
 from gnss_analysis import time_utils
 from gnss_analysis import constants as c
+from gnss_analysis.io import common
 
 
 def observation(ephemerides, location_ecef, toa,
@@ -99,11 +100,11 @@ def observation(ephemerides, location_ecef, toa,
   # by the rinex parsers and by sbp log parsers.  We should reconsile those
   # differences and fix them here.
   obs = ephemerides.copy()
-  obs['raw_pseudorange'] = raw_pseudorange
+  obs.ix[:, 'raw_pseudorange'] = raw_pseudorange.values
   obs['time'] = toa
   obs['carrier_phase'] = carrier_phase
   # doppler, cn0 and lock aren't simulated yet.
-  obs['raw_doppler'] = doppler
+  obs['raw_doppler'] = doppler.values
   obs['signal_noise_ratio'] = 30.
   obs['lock'] = 0.
   obs['ref_x'] = location_ecef[0]
@@ -111,7 +112,8 @@ def observation(ephemerides, location_ecef, toa,
   obs['ref_z'] = location_ecef[2]
   obs['ref_t'] = toa
   obs['ref_rover_clock_error'] = rover_clock_error
-  return obs
+  obs['band'] = 1
+  return common.normalize(obs)
 
 
 def piksi_like_observation(ephemerides, location_ecef, toa,

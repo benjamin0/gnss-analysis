@@ -158,6 +158,14 @@ def cors_short_baseline(datadir):
 
 
 @pytest.fixture
+def rinex_210(datadir):
+  # this is actually a 2.11 observation file and 2.10 nav file.
+  rover = datadir.join('rinex_210_examples/nnor049a00.16o').strpath
+  nav = datadir.join('rinex_210_examples/nnor049a00.16n').strpath
+  return rinex_observation_sets(rover, nav, base=None)
+
+
+@pytest.fixture
 def piksi_roof(datadir):
   log_path = datadir.join('partial_serial-link-20151221-142236.log.json').strpath
   return piksi_observation_sets(log_path)

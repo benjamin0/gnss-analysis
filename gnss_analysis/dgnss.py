@@ -84,19 +84,21 @@ def double_difference(sdiffs, drop_ref=True):
   """
   assert sdiffs.index.name == 'sid'
   # subset to only the variables for which differencing makes sense
-  ss = sdiffs.reset_index()[['pseudorange', 'carrier_phase', 'sid']]
+  ss = sdiffs[['pseudorange', 'carrier_phase',
+               'sat', 'constellation']]
   # Choose a reference satellite arbitrarily.  We don't need to take
   # the difference between all permutations of satellites since they
   # will largely be linear combinations of each other.
-  ref = ss.iloc[0]
   if drop_ref:
     ddiffs = ss.iloc[1:].copy()
   else:
     ddiffs = ss.copy()
   # subtract out the reference satellites single differences
-  ddiffs[['pseudorange', 'carrier_phase']] -= ref[['pseudorange', 'carrier_phase']]
+  diff_vars = ['pseudorange', 'carrier_phase']
+  # use .values here or pandas will try to be too smart and align by index
+  ddiffs[diff_vars] -= ss[diff_vars].values[0]
   # create a new ref_sid variable so we know which satellite was used.
-  ddiffs['ref_sid'] = ref['sid']
+  ddiffs['ref_sid'] = ss.index.values[0]
   return ddiffs
 
 
@@ -107,13 +109,9 @@ def create_single_difference_objects(sdiffs):
   """
   assert sdiffs.index.name == 'sid'
   for sid, sdiff in sdiffs.iterrows():
-    if isinstance(sid, basestring):
-      if sid.startswith('G'):
-        sid = int(sid[1:])
-      else:
-        raise NotImplementedError("The sid %s appears to be a GLONAS"
-                                  " satellite or other non supported type"
-                                  % sid)
+    # so far we assume single differences are from L1 GPS signals
+    assert sdiff.band == 1
+    assert sdiff.constellation == 'GPS'
 
     yield SingleDiff(pseudorange=sdiff.pseudorange,
                      carrier_phase=sdiff.carrier_phase,
@@ -122,7 +120,7 @@ def create_single_difference_objects(sdiffs):
                      sat_vel=sdiff[['sat_v_x', 'sat_v_y', 'sat_v_z']].values,
                      snr=sdiff.signal_noise_ratio,
                      lock_counter=sdiff.lock,
-                     sid={'sat':sid, 'band':0, 'constellation': 0})
+                     sid={'sat':sdiff.sat, 'code': 0})
 
 
 def omega_dot_unit_vector(base_pos, sat, baseline_estimate):

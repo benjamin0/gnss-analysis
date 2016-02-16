@@ -114,7 +114,6 @@ def delta_tof_propagate(position_ecef, satellite, new_toa=None, new_tot=None):
   new_toa, new_tot, new_tof = resolve_times(sat, position_ecef, new_toa, new_tot)
   # don't trust the TOT in sat since it may or may not include clock errors.
   old_tof = ephemeris.time_of_flight_from_toa(sat, sat['time'], position_ecef)
-
   # compute the change in physical distance between target and observation
   delta_dist = (new_tof - old_tof) * c.GPS_C
   # compute the new sat positions at time of transmit.

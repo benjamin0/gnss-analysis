@@ -18,6 +18,13 @@ import pandas as pd
 from gnss_analysis import time_utils
 from gnss_analysis.io import common
 
+_supported_versions = ['2.10', '2.11']
+
+_constellation_lookup = {'G': 'GPS',
+                         'R': 'GLONAS',
+                         'S': 'GEO',
+                         'E': 'GALILEO',
+                         'M': 'MIXED'}
 
 def count_observations(rinex_observation_file):
   with open(rinex_observation_file, 'r') as f:
@@ -228,8 +235,9 @@ def parse_header(f):
   Parses both navigation and observation RINEX headers.
   """
   header = parse_version(f.next())
-  if not header['version'] == '2.11':
-    raise AssertionError('RINEX parsing only supports version 2.11')
+  if not header['version'] in _supported_versions:
+    raise AssertionError('RINEX parsing only supports version %s'
+                         % ','.join(_supported_versions))
   # we only support observation and navigation files
   if not header['file_type'] in ['O', 'N']:
     raise AssertionError("RINEX parsing only supports observation and"
@@ -467,7 +475,9 @@ def build_observation_parser(header):
   # Then build a template data frame.  By performing this creation
   # upfront we avoid needing a (costly) DataFrame creation for
   # each parsed line.
-  template = pd.DataFrame(data, index=bands, columns=desired_columns)
+  template = pd.DataFrame(data,
+                          index=pd.Index(bands, name='band'),
+                          columns=desired_columns)
   # the lock variable defaults to zero rather than nan
 #   template.ix[:, 'carrier_phase_LLI'] = 0
   # Each observation in a RINEX file will be the same, so here we
@@ -492,6 +502,7 @@ def build_observation_parser(header):
   def parser(lines):
     # grab the next `n_lines` lines and join them into one
     joined = ''.join(lines.next() for i in range(n_lines))
+    joined = joined.replace('\n', '')
     # then parse it into observations
     funcs = itertools.cycle([float_or_nan, int_or_zero, int_or_zero])
     obs = np.array([f(o) for f, o in zip(funcs, obs_parser(joined))])
@@ -520,10 +531,9 @@ def build_navigation_parser(header):
     next navigation message.
   """
 
-
   # Here we define the parser fields for each of the 8 lines in a nav message
   line_fields = [# Line 1
-                 [('sid', '2s', lambda x: 'G%2s' % x.strip().zfill(2)),
+                 [('sat', '2s', lambda x: '%2s' % x.strip().zfill(2)),
                   ('year', '1x 2s', lambda x: int(x) + 2000),
                   ('month', '1x 2s', int),
                   ('day', '1x 2s', int),
@@ -587,6 +597,8 @@ def build_navigation_parser(header):
     # parse each line in turn
     parsed_lines = [parse_one_line(*x)
                     for x in zip(line_parsers, line_fields, lines)]
+    if not len(parsed_lines):
+      return {}
     # combine the list of dictionaries into a single dictionary
     # (note that there are faster ways to do this)
     nav_message = {k: v for part in parsed_lines for k, v in part.items()}
@@ -606,6 +618,8 @@ def build_navigation_parser(header):
     #   (1e-6 / (24 * 60 * 60) = 1.1574074074074075e-14
     assert header.get('a0', 0.) <= 1e-6
     assert header.get('a1', 0.) <= 1e-11
+
+    nav_message['constellation'] = 'GPS'
     return nav_message
 
   return navigation_parser
@@ -619,22 +633,22 @@ def parse_observation_set(lines, observation_parser):
   # the first line in a observation set is the epoch
   epoch = parse_epoch(lines)
   # then the next lines correspond to actual observations.
-  def add_sid(x, prn):
-    x.ix[:, 'sid'] = prn
-    return x
   pairs = [(k, observation_parser(lines))
            for k in epoch['prns']]
-  sids = np.concatenate([np.repeat(k, x.shape[0]) for k, x in pairs])
+  sats = np.concatenate([np.repeat(k[1:], x.shape[0]) for k, x in pairs])
+  constellations = np.concatenate([np.repeat(_constellation_lookup[k[0]],
+                                             x.shape[0])
+                                   for k, x in pairs])
   # concatenate all the observations together
   df = pd.concat(x for _, x in pairs)
-  # switch to using 'sid' as the index
-  df.index.name = 'band'
-  df.reset_index(inplace=True)
-  df.index = pd.Index(sids, name='sid')
+  # create a unique sid identifier which consists of the satellite
+  # id and band.
   # add a time, epoch and doppler column
+  df.ix[:, 'sat'] = sats
+  df.ix[:, 'constellation'] = constellations
   df.ix[:, 'time'] = epoch['time']
   df.ix[:, 'epoch'] = epoch['time']
-  return normalize(df)
+  return common.normalize(df)
 
 
 def read_observation_file(filelike):
@@ -714,8 +728,7 @@ def read_navigation_file(filelike):
         nav_message = nav_parser(lines)
 
     for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['epoch']):
-
-      yield pd.DataFrame(list(grp)).set_index('sid')
+      yield pd.DataFrame(list(grp)).set_index('sat')
 
   return header, iter_navigations()
 
@@ -748,16 +761,6 @@ def iter_padded_lines(file_or_path, pad=80):
     lines = iter(file_or_path)
 
   return (('{: <%d}' % pad).format(l) for l in lines)
-
-
-def normalize(rinex_obs):
-  """
-  We currently only use raw pseudorange and carrier_phase, this drops
-  any rows where there is a nan in those fields.  In the future more
-  normalization operations can happen here.
-  """
-  rinex_obs.dropna(subset=['raw_pseudorange', 'carrier_phase'], inplace=True)
-  return rinex_obs
 
 
 def infer_navigation_path(observation_path):
