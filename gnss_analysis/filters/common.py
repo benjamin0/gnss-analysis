@@ -40,7 +40,7 @@ class DGNSSFilter(object):
     if not self.base_known:
       # TODO: on the piksi this position has a low pass filter applied.
       spp = solution.single_point_position(base_obs)
-      self.base_pos = spp[['x', 'y', 'z']].values
+      self.base_pos = spp[['x', 'y', 'z']].values[0]
 
   def get_single_diffs(self, rover_obs, base_obs, propagate_base=False):
     """
@@ -58,8 +58,7 @@ class DGNSSFilter(object):
       assert get_unique_value(base_obs['time']) == rover_toa
 
     # Compute single differences.
-    sdiffs = dgnss.make_propagated_single_differences(rover_obs, base_obs,
-                                                      self.base_pos)
+    sdiffs = dgnss.single_difference(rover_obs, base_obs)
 
     if self.prev_sdiffs is not None:
       # check to make sure the lock hasn't changed since the previous

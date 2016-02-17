@@ -2,8 +2,6 @@ import copy
 import pytest
 import numpy as np
 
-from gnss_analysis.io import simulate
-
 
 def test_simulators(observation_sets):
   """
@@ -21,9 +19,11 @@ def test_simulators(observation_sets):
     # make sure all the expected keys are keys in the obs_set
     assert not len(expected_keys.difference(obs_set.keys()))
 
+    # make a copy of the current observation set so we can revert
+    # after the subsequent modifications
+    obs_set_copy = copy.deepcopy(obs_set)
     # now make sure we can modify fields in the obs_set without impacting
     # others.
-    obs_set_copy = copy.deepcopy(obs_set)
     for k in [k for k in obs_set.keys() if not k.endswith('_info')]:
       # scalars can't be updated in place, so no need to worry about them.
       # also skip this if an observation type wasn't seen before

@@ -2,7 +2,7 @@ import os
 import pytest
 import argparse
 
-from gnss_analysis.tools import convert
+from gnss_analysis.tools import common, convert
 
 @pytest.fixture(params=['cors', 'piksi'])
 def input_observations(request, datadir):
@@ -30,14 +30,16 @@ def options(request):
     return '-n 10 --calc-sat-state'
 
 
-def test_converts_piksi(datadir, input_observations, options):
+def test_converts(datadir, input_observations, options):
 
   parser = argparse.ArgumentParser()
   parser = convert.create_parser(parser)
 
   full_args = ' '.join([input_observations, options])
   args = parser.parse_args(full_args.split())
-  args = convert.post_process(args)
+
+  args.output = common.infer_output(args.output, args.input, args.filter_name)
+  args.filter = common.resolve_filters(args.filter_name)
 
   convert.convert(args)
 

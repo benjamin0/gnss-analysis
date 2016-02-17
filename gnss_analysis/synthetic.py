@@ -210,5 +210,6 @@ def synthetic_observation_set(ephemerides, rover_ecef, base_ecef, toa):
              'base': observation(ephemerides,
                                  location_ecef=base_ecef,
                                  toa=toa),
-             'ephemeris': ephemerides}
+             'ephemeris': ephemerides,
+             'epoch': toa}
   return obs_set

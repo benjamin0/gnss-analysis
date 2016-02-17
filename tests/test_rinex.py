@@ -3,7 +3,6 @@ import pytest
 import string
 import datetime
 import numpy as np
-import pandas as pd
 
 from gnss_analysis.io import rinex
 

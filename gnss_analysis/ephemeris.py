@@ -434,6 +434,14 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
   """
   assert 'raw_pseudorange' in obs
 
+  # it is sometimes helpful to precompute satellite state all
+  # at once, then pass it through the some other set of functions
+  # that can't assume the state has been precomputed.
+  # Here we check if the state was already added, and if so
+  # skip the expensive calc_sat_state computation.
+  if has_sat_state(obs):
+    return obs
+
   if ephemerides is None:
     # if ephemerides weren't supplied make sure obs contains
     # either ephemerides or satellite state
@@ -454,32 +462,24 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
   # We can't continue if we have nan raw_pseudoranges
   assert np.all(np.isfinite(obs['raw_pseudorange']))
   # this is the apparent time of flight, not the actual (physical) one
-  tof = obs['raw_pseudorange'] / c.GPS_C
-  obs['tof'] = tof
-  # it is sometimes helpful to precompute satellite state all
-  # at once, then pass it through the some other set of functions
-  # that can't assume the state has been precomputed.
-  # Here we check if the state was already added, and if so
-  # skip the expensive calc_sat_state computation.
-  if not has_sat_state(obs):
-    # time of transmission is the epoch time minus the time of flight.
-    obs['tot'] = obs['time'].values - time_utils.timedelta_from_seconds(tof)
+  obs['tof'] = obs['raw_pseudorange'] / c.GPS_C
+  # time of transmission is the epoch time minus the time of flight.
+  obs['tot'] = obs['time'].values - time_utils.timedelta_from_seconds(obs['tof'].values)
+  sat_state = calc_sat_state(obs, obs['tot'])
+  # Here we optionally adjust the satellite state to account for
+  # satellite clock error.  In otherwords, the satellites all transmit
+  # at what they think is a synchronized tot, but each is actually off
+  # by 'sat_clock_error'.  This error can be on the order of tenths of
+  # a second, during which time the satellite position can change
+  # significantly.
+  if account_for_sat_error:
+    sat_error = sat_state['sat_clock_error']
+    # TODO: perhaps it's not worth keeping track of tof since it's
+    #   redundant given pseudorange?
+    obs['tof'] += sat_error
+    obs['tot'] -= time_utils.timedelta_from_seconds(sat_error)
     sat_state = calc_sat_state(obs, obs['tot'])
-    # Here we optionally adjust the satellite state to account for
-    # satellite clock error.  In otherwords, the satellites all transmit
-    # at what they think is a synchronized tot, but each is actually off
-    # by 'sat_clock_error'.  This error can be on the order of tenths of
-    # a second, during which time the satellite position can change
-    # significantly.
-    if account_for_sat_error:
-      sat_error = sat_state['sat_clock_error']
-      # TODO: perhaps it's not worth keeping track of tof since it's
-      #   redundant given pseudorange?
-      obs['tof'] += sat_error
-      obs['tot'] -= time_utils.timedelta_from_seconds(sat_error)
-
-      sat_state = calc_sat_state(obs, obs['tot'])
-    obs = _join_common_sats(obs, sat_state)
+  obs = _join_common_sats(obs, sat_state)
 
   # compute the satellite position at the observation time
   # add the clock error to form the corrected pseudorange

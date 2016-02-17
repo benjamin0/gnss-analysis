@@ -1,7 +1,11 @@
+import copy
+import itertools
 import numpy as np
 
 from gnss_analysis import solution, ephemeris, time_utils
 from gnss_analysis.io import simulate
+
+import common
 
 
 def test_spp_consistent(synthetic_observations):
@@ -25,7 +29,7 @@ def test_spp_consistent(synthetic_observations):
   assert np.abs(tdiff) < 1e-5
 
 
-def test_matches_piksi(piksi_log_path):
+def test_spp_matches_piksi(piksi_log_path):
 
   states = (x for _, x in zip(range(10), simulate.simulate_from_log(piksi_log_path)))
   tested = False
@@ -75,4 +79,13 @@ def test_single_point_position(synthetic_observations):
   # Here just make sure that the reference rover clock error was recovered
   error = spp['clock_offset'] - obs['ref_rover_clock_error'].values[0]
   assert np.linalg.norm(error) < 1e-9
+
+
+def test_solution_doesnt_mutate(synthetic_stationary_observations, null_filter):
+  obs_sets = [x for _, x in itertools.izip(range(3), synthetic_stationary_observations)]
+  obs_sets_copy = copy.deepcopy(obs_sets)
+  solns = list(solution.solution(obs_sets, null_filter))
+
+  for used, orig in zip(obs_sets, obs_sets_copy):
+    common.assert_observation_sets_equal(used, orig)
 
