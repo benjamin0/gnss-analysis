@@ -353,9 +353,9 @@ def next_non_comment(lines):
     if line.strip().endswith('COMMENT'):
       if i == 0:
         # If we are skip any lines we explain that to the user
-        logging.info("Skipping the following comment lines:")
+        logging.debug("Skipping the following comment lines:")
       # Then log all the skipped lines.
-      logging.info(line.strip())
+      logging.debug(line.strip())
     else:
       break
   return line

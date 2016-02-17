@@ -1,7 +1,6 @@
 import os
 import sys
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 from gnss_analysis import filters
