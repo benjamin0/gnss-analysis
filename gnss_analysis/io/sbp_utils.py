@@ -62,17 +62,17 @@ def get_sid(msg):
     raise AttributeError("msg does not contain a satellite id")
 
 
-def update_position(obs, msg, data, suffix):
+def update_position(obs, msg, data, suffix, in_mm=False):
   """
   Convert the position estimate to a DataFrame and update
   the correct obs field.
   """
   field = '%s_%s' % (get_source(msg), suffix)
-  obs[field] = position_to_dataframe(msg, data)
+  obs[field] = position_to_dataframe(msg, data, in_mm)
   return obs
 
 
-def position_to_dataframe(msg, data):
+def position_to_dataframe(msg, data, in_mm):
   """
   Extracts any position information from the message and
   converts units, then creates a one dimensional DataFrame
@@ -97,13 +97,15 @@ def position_to_dataframe(msg, data):
   m.update({'host_time': data['timestamp']})
   # The time of week is in milliseconds, convert to seconds
   m['tow'] /= c.MSEC_TO_SECONDS
-  # All other measurements are in mm, but we want meters
-  # here we convert both north, east, down and x, y, z
-  # coords if they are present.
-  if 'n' in m:
-    m['n'] /= c.MM_TO_M
-    m['e'] /= c.MM_TO_M
-    m['d'] /= c.MM_TO_M
+
+  if in_mm:
+    # For baseline computations all units are in mm but we want meters
+    # here we convert north, east, down coords if they are present.
+    to_convert = ['x', 'y', 'z', 'n', 'e', 'd']
+    for k in to_convert:
+      if k in m:
+        m[k] /= c.MM_TO_M
+
   return pd.DataFrame(m, index=pd.Index([host_offset], name='host_offset'))
 
 
