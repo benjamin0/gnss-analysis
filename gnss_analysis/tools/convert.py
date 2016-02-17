@@ -6,8 +6,12 @@ import argparse
 import progressbar
 import pandas as pd
 
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+
 from sbp.client.loggers.json_logger import JSONLogIterator
 
+from gnss_analysis import filters
+from gnss_analysis import solution
 from gnss_analysis import ephemeris
 from gnss_analysis.io import simulate, hdf5, rinex, sbp_utils
 
@@ -92,8 +96,10 @@ def get_observation_sets(input_path, base_path=None, nav_path=None):
 
 
 def convert(args):
-
-  if not args.output.name.rsplit(".", 1)[1] in ['h5', 'hdf5']:
+  """
+  Interprets the arguments and runs the corresponding conversion.
+  """
+  if not args.output.rsplit(".", 1)[1] in ['h5', 'hdf5']:
     raise ValueError("Expected the output path to end with either '.h5',"
                      " or '.hdf5'.")
 
@@ -101,7 +107,7 @@ def convert(args):
                                        args.base,
                                        args.navigation)
 
-  # optionall add the satellite state to rover and base
+  # optionally add the satellite state to rover and base
   if args.calc_sat_state:
     obs_sets = add_satellite_state(obs_sets)
 
@@ -115,8 +121,14 @@ def convert(args):
   bar = progressbar.ProgressBar(maxval=cnt)
   obs_sets = bar(obs_sets)
 
+  # optionally fun a filter on the observations before saving.
+  if args.filter is not None:
+    logging.info("Running filter (%s) using the observations"
+                 % type(args.filter))
+    obs_sets = solution.solution(obs_sets, args.filter)
+
   logging.info("Writting to HDF5")
-  hdf5.to_hdf5(obs_sets, args.output.name)
+  hdf5.to_hdf5(obs_sets, args.output)
 
 
 if __name__ == "__main__":
@@ -124,19 +136,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description=
                                    """
 %(script_name)s
-
-A tool for converting from a variety of different formats to HDF5.
-
-Often the majority of CPU time required to run a filter or perform
-analysis is focused on parsing and precomputing values required
-to interpret the observations.  This script allows you to pre-process
-a set of observations and dump them to HDF5.  The resulting HDF5
-file can be used to produce observation sets the same way the
-original files would have.
+A tool for converting from a variety of different formats to HDF5,
+with the option of precomputing satellite states or running a
+filter before saving.
 """
                                     % {'script_name': script_name})
 
-  parser.add_argument('--input', type=argparse.FileType('r'),
+  parser.add_argument('input', type=argparse.FileType('r'),
                       help='Specify the input file that contains the rover'
                            ' (and possibly base/navigation) observations.'
                            ' The file type is infered from the extension,'
@@ -148,15 +154,40 @@ original files would have.
   parser.add_argument('--navigation',
                       help='Optional source of navigation observations.',
                       default=None)
-  parser.add_argument('--output', type=argparse.FileType('w'),
-                      help='Specify the output file to use.')
+  parser.add_argument('--output', type=argparse.FileType('w'), default=None,
+                      help='Optional output path to use, default creates'
+                           ' one from the input path and other arguments.')
   parser.add_argument("-n", type=int, default=None,
-                      help="The number of observation sets that will be read.")
+                      help="The number of observation sets that will be read,"
+                           " default uses all available.")
   parser.add_argument('--calc-sat-state', action="store_true", default=False,
                       help="If specified the satellite state is computed"
                            " prior to saving to HDF5.")
   parser.add_argument('--profile', default=False, action="store_true")
+  parser.add_argument("--filter", choices=['static', 'dynamic'],
+                      default=None)
   args = parser.parse_args()
+
+  # if the output file was not provided we infer it from the input
+  if args.output is None:
+    # split into directory and basename
+    dirname = os.path.dirname(args.input.name)
+    basename = os.path.basename(args.input.name)
+    # add the filter name to the output file if possible
+    basename = '_'.join([args.filter, basename])
+    # reassmble the output name
+
+    args.output = os.path.join(dirname, '%s.hdf5' % basename)
+    logging.info("output path: %s" % args.output)
+  else:
+    # we only need the output path if it was specified.
+    args.output = args.output.name
+
+  # instantiate the filter if it was provided
+  all_filters = {'static': filters.StaticKalmanFilter(),
+                 'dynamic': filters.DynamicKalmanFilter()}
+  if args.filter is not None:
+    args.filter = all_filters[args.filter]
 
   if args.profile:
     import cProfile

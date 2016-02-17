@@ -112,35 +112,40 @@ files using the `convert.py` script.
 
 ```
 $ python gnss_analysis/tools/convert.py --help
-usage: convert.py [-h] [--input INPUT] [--base BASE] [--navigation NAVIGATION]
-                  [--output OUTPUT] [-n N] [--calc-sat-state]
+usage: convert.py [-h] [--base BASE] [--navigation NAVIGATION]
+                  [--output OUTPUT] [-n N] [--calc-sat-state] [--profile]
+                  [--filter {static,dynamic}]
+                  input
 
-convert.py A tool for converting from a variety of different formats to HDF5.
-Often the majority of CPU time required to run a filter or perform analysis is
-focused on parsing and precomputing values required to interpret the
-observations. This script allows you to pre-process a set of observations and
-dump them to HDF5. The resulting HDF5 file can be used to produce observation
-sets the same way the original files would have.
+convert.py A tool for converting from a variety of different formats to HDF5,
+with the option of precomputing satellite states or running a filter before
+saving.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --input INPUT         Specify the input file that contains the rover (and
+positional arguments:
+  input                 Specify the input file that contains the rover (and
                         possibly base/navigation) observations. The file type
                         is infered from the extension, (SBP=".json",
                         RINEX="*o", HDF5=[".h5", ".hdf5"]) and the appropriate
                         parser is used.
+
+optional arguments:
+  -h, --help            show this help message and exit
   --base BASE           Optional source of base observations.
   --navigation NAVIGATION
                         Optional source of navigation observations.
-  --output OUTPUT       Specify the output file to use.
-  -n N                  The number of observation sets that will be read.
+  --output OUTPUT       Optional output path to use, default creates one from
+                        the input path and other arguments.
+  -n N                  The number of observation sets that will be read,
+                        default uses all available.
   --calc-sat-state      If specified the satellite state is computed prior to
                         saving to HDF5.
+  --profile
+  --filter {static,dynamic}
 ```
 
 For example we could run:
 ```shell
-python tools/convert.py --input path_to_rover_file \
+python tools/convert.py path_to_rover_file \
  --base path_to_base_file --navigation path_to_nav_file \
  --calc-sat-state --output observations.hdf5
 ```
