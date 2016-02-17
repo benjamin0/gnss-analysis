@@ -121,7 +121,7 @@ def convert(args):
   bar = progressbar.ProgressBar(maxval=cnt)
   obs_sets = bar(obs_sets)
 
-  # optionally fun a filter on the observations before saving.
+  # optionally run a filter on the observations before saving.
   if args.filter is not None:
     logging.info("Running filter (%s) using the observations"
                  % type(args.filter))
