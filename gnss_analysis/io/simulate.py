@@ -134,9 +134,11 @@ def simulate_from_log(log, initial_observation_set={}):
                  nav.MsgPosLLH: partial(sbp_utils.update_position,
                                         suffix='spp_llh'),
                  nav.MsgBaselineNED: partial(sbp_utils.update_position,
-                                             suffix='rtk_ned'),
+                                             suffix='rtk_ned',
+                                             in_mm=True),
                  nav.MsgBaselineECEF: partial(sbp_utils.update_position,
-                                              suffix='rtk_ecef')}
+                                              suffix='rtk_ecef',
+                                              in_mm=True)}
                 # because the piksi propagates all observations to the epoch
                 # we actively ignore the gps time messages that hold the
                 # time from the SPP solve since it doesn't correspond to the
