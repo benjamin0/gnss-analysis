@@ -51,7 +51,6 @@ if __name__ == "__main__":
   # collect all the baseline errors
   errors = [compute_baseline_error(soln) for soln in solutions]
   # and make a plot
-  sns.set_style('darkgrid')
   plt.plot(errors)
   plt.xlabel("Epoch")
   plt.ylabel("actual - expected (m)")

@@ -32,6 +32,7 @@ INSTALL_REQUIRES = ['cython',
                     # or can be installed from a local clone of
                     # libswiftnav.
                     'swiftnav',
+                    'progressbar'
                     ]
 TEST_REQUIRES = ['pytest', 'mock']
 
