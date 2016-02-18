@@ -12,10 +12,10 @@ from gnss_analysis.filters import common
 class KalmanFilter(common.TimeMatchingDGNSSFilter):
   """
   This version of an Extended Kalman Fiter is based largely off the paper:
-  
+
     Xiao-wen Chang and Christopher C. Paige and Lan Yin
     Code and Carrier Phase Based Short Baseline GPS Positioning: Computational Aspects
-  
+
   The largest obvious difference between this algorithm and a typical
   float filter is the use of householder transformations in place of double
   differences.
@@ -200,7 +200,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     """
     Builds the double differenced (or in this case, orthogonal equivalent
     of the double difference) observation model.
-    
+
     Returns
     -------
     y : np.ndarray
@@ -563,14 +563,14 @@ def expand_operator(z):
   largely the same.  This function takes operators that would be used
   in a LKF (ie, a single matrix) and converts it into a function and
    it's jacobian (which is required for EKFs).
-   
+
   Parameters
   ----------
   z : np.ndarray or (function, np.ndarray)
     An operator which can either be a single matrix (in the case
     of a LKF) or function / jacobian tuple (in the case of an
     EKF).
-  
+
   Returns
   ---------
   f : callable
@@ -600,7 +600,7 @@ def kalman_predict(x, P, F, Q, B=None, u=None):
   to the state at some iteration of a kalman filter, and advances
   the state to the next time step using the transition F, process
   noise Q and optional forcings B *u.
-    
+
   Parameters
   ----------
   x : np.ndarray
@@ -619,7 +619,7 @@ def kalman_predict(x, P, F, Q, B=None, u=None):
     (u) on the state (x)
   u : np.ndarray
     A 1-d array that holds forcings, aka control variables.
-    
+
   Returns
   ---------
   x : np.ndarray
@@ -653,7 +653,7 @@ def kalman_update(x, P, y, H, R):
   to the state at some iteration of a kalman filter, and computes
   and update to the state conditional on a new set of observations
   y.
-  
+
   Parameters
   ----------
   x : np.ndarray
@@ -668,7 +668,7 @@ def kalman_update(x, P, y, H, R):
     The observation model. x' = H(y) + R
   R : np.ndarray
     A 2-d array representing the noise introduced in the measurement process
-    
+
   Returns
   ---------
   x : np.ndarray
@@ -683,12 +683,8 @@ def kalman_update(x, P, y, H, R):
   h, H = expand_operator(H)
   # actual observation minus the observation model
   innov = y - h(x)
+  PHT = np.dot(P, H.T)
   S = np.dot(np.dot(H, P), H.T) + R
-  # NOTE: np.linalg.inv(S) is a horrible HORRIBLE thing to do, but
-  #   for the first time around it should be fine.
-  # precompute factors used in K
-  # K is a function that performs K.dot(z)
-  K = np.dot(np.dot(P, H.T), np.linalg.inv(S))
-  x = x + np.dot(K, innov)
-  P = np.dot(np.eye(P.shape[0]) - np.dot(K, H), P)
+  x = x + PHT.dot(np.linalg.solve(S, innov))
+  P = np.dot(np.eye(P.shape[0]) - PHT.dot(np.linalg.solve(S, H)), P)
   return x, P
