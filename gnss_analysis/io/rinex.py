@@ -428,6 +428,19 @@ def parse_epoch(lines):
   return epoch
 
 
+def expand_observation_types(observation_types):
+  """
+  Each observation is stored with a loss of lock indicator and
+  a signal strength indicator.  This takes an iterator
+  of observation_types and expands each observation type
+  to include the LLI and SN.
+  """
+  for ob_type, band in observation_types:
+    yield ob_type, band
+    yield '%s_LLI' % ob_type, band
+    yield '%s_SN' % ob_type, band
+
+
 def build_observation_parser(header):
   """
   From the header file we know how many observation types exist in
@@ -441,35 +454,52 @@ def build_observation_parser(header):
   n_lines = n_types / 5 + 1
   obs_parser = build_parser(['14s 1s 1s'] * n_types)
 
+  # each observation holds a value, lock indicator and strength
+  # this expands to the full list of values
+  all_types = list(expand_observation_types(header['observation_types']))
+  desired_columns = ['carrier_phase', 'raw_pseudorange', 'raw_doppler',
+                     'signal_noise_ratio', 'carrier_phase_LLI',]
+  # a set of all the available bands.
+  bands = set(y for _, y in all_types)
+  # Here we build an array filled with nans in the proper shape
+  data = np.empty((len(bands), len(desired_columns)))
+  data.fill(np.nan)
+  # Then build a template data frame.  By performing this creation
+  # upfront we avoid needing a (costly) DataFrame creation for
+  # each parsed line.
+  template = pd.DataFrame(data, index=bands, columns=desired_columns)
+  # the lock variable defaults to zero rather than nan
+#   template.ix[:, 'carrier_phase_LLI'] = 0
+  # Each observation in a RINEX file will be the same, so here we
+  # compute the row and columns indexers that map to the observation
+  # types we want to use.
+  row_idx = template.index.get_indexer([y for _, y in all_types])
+  col_idx = template.columns.get_indexer([x for x, _ in all_types])
+  # not all of the values in a RINEX observation get used, here
+  # we determine which we want to keep.
+  use = np.all(np.array([col_idx, row_idx]) >= 0, axis=0)
+  # subset the indexers
+  row_idx = row_idx[use]
+  col_idx = col_idx[use]
+  # RINEX reports a loss of lock indicator for each variable in
+  # a measurement, but typically the only one we care about is the
+  # carrier phase loss of lock, so we rename it.
+  template.rename(columns={'carrier_phase_LLI': 'lock'}, inplace=True)
+  # if template values are mixed nan/non-nan the fancy indexing
+  # we use below to fill epoch won't work (what an awful bug!).
+  assert np.all(np.isnan(template.values))
 
   def parser(lines):
     # grab the next `n_lines` lines and join them into one
     joined = ''.join(lines.next() for i in range(n_lines))
     # then parse it into observations
-    obs = obs_parser(joined)
-    values, locks, strengths = zip(*split_every(3, obs))
-    # each observation should be in floating point, nans for empty values
-    values = map(float_or_nan, values)
-    # The locks also hold information about anti-spoofing (which adds noise?)
-    locks = map(int_or_zero, locks)
-    strengths = map(int_or_zero, strengths)
-    # Here we assemble the observations into a DataFrame
-    # There is probably a faster way to do this.
-    value_entries = [(freq, obs_type, val)
-                     for (obs_type, freq), val
-                     in zip(header['observation_types'], values)]
-    # Note that we only keep the LLI values from carrier phase.
-    # Does a loss of lock even matter for code/pseudorange?
-    lock_entries = [(freq, 'lock', val)
-                     for (obs_type, freq), val
-                     in zip(header['observation_types'], locks)
-                     if obs_type == 'carrier_phase']
-    strength_entries = [(freq, '%s_SN' % obs_type, val)
-                        for (obs_type, freq), val
-                        in zip(header['observation_types'], locks)]
-    entries = list(itertools.chain(value_entries, lock_entries, strength_entries))
-    entries = pd.DataFrame(entries, columns=['frequency', 'variable', 'value'])
-    return entries.pivot(index='frequency', columns='variable', values='value')
+    funcs = itertools.cycle([float_or_nan, int_or_zero, int_or_zero])
+    obs = np.array([f(o) for f, o in zip(funcs, obs_parser(joined))])
+    # make a copy of the template and fill it with the
+    # appropriate observations.
+    epoch = template.copy(deep=True)
+    epoch.values[row_idx, col_idx] = obs[use]
+    return epoch
 
   return parser
 
@@ -590,19 +620,20 @@ def parse_observation_set(lines, observation_parser):
   epoch = parse_epoch(lines)
   # then the next lines correspond to actual observations.
   def add_sid(x, prn):
-    x['sid'] = prn
+    x.ix[:, 'sid'] = prn
     return x
-  dfs = [add_sid(observation_parser(lines), k)
-         for k in epoch['prns']]
+  pairs = [(k, observation_parser(lines))
+           for k in epoch['prns']]
+  sids = np.concatenate([np.repeat(k, x.shape[0]) for k, x in pairs])
   # concatenate all the observations together
-  df = pd.concat(dfs)
-  # add a time column
+  df = pd.concat(x for _, x in pairs)
+  # switch to using 'sid' as the index
+  df.index.name = 'band'
+  df.reset_index(inplace=True)
+  df.index = pd.Index(sids, name='sid')
+  # add a time, epoch and doppler column
   df.ix[:, 'time'] = epoch['time']
   df.ix[:, 'epoch'] = epoch['time']
-  df.ix[:, 'raw_doppler'] = np.nan
-  # switch to using 'sid' as the index
-  df.reset_index(inplace=True)
-  df.set_index('sid', inplace=True)
   return normalize(df)
 
 

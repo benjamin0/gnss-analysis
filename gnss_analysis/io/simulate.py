@@ -216,17 +216,17 @@ def simulate_from_iterators(rover, **kwdargs):
       # observaiton set, rather than worry about keeping all observations
       # consistent we drop the epoch variable from the observation
       if 'time' in next_obs[group_name]:
-        try:
-          assert np.all(next_obs[group_name]['time'] <= cur_obs_set['epoch'])
-        except:
-          import ipdb; ipdb.set_trace()
+        assert np.all(next_obs[group_name]['time'] <= cur_obs_set['epoch'])
+
       no_epoch = next_obs[group_name].drop('epoch', axis=1)
+
       if update and group_name in cur_obs_set:
         # this is used for ephemeris information which typically
         # arrives gradually.  Rather than overwritting the current
         # observations we want to add (update) the new ones.
         old, new = cur_obs_set[group_name].align(no_epoch, 'outer')
-        cur_obs_set[group_name].update(no_epoch)
+        old.update(new)
+        cur_obs_set[group_name] = old
       else:
         # for most situations we want to completely overwrite
         # the current observations with the new ones.
@@ -305,7 +305,6 @@ def simulate_from_hdf5(hdf5_file):
     # determine all the available groups
     keys = [x.strip('/') for x in store.keys()]
     assert 'rover' in keys
-
     # this creates a header, iterator tuple for each group
     kwdargs = {k: hdf5.read_group(store, k) for k in keys}
     # We iterate over this (instead of just returning the generator)
