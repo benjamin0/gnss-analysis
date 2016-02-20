@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 
-from gnss_analysis import filters
 from gnss_analysis import solution
 from gnss_analysis import locations
 
@@ -78,36 +77,19 @@ def test_eventually_gets_synthetic_baseline(synthetic_stationary_observations,
   assert_matches_at_some_point()
 
 
-@pytest.mark.skipif(True, reason="The swiftnav baseline quickly diverges.")
-def test_matches_libswiftnav(synthetic_stationary_observations):
+def test_agrees_with_piksi_logs(piksi_roof, dgnss_filter_class):
+  """
+  Tests for reasonable agreement with the piksi logs.  This is done
+  by running dgnss_filter_class through the piksi_roof log and
+  making sure the error at the end is less than twice the error
+  of the piksi reported baselines.
+  """
+  dgnss_filter = dgnss_filter_class(base_pos=locations.LEICA_ABSOLUTE)
 
-  for i, obs_set in zip(range(10), synthetic_stationary_observations):
-    if i == 0:
-      swift_filter = filters.SwiftNavDGNSSFilter(disable_raim=True,
-                                             base_pos=locations.LEICA_ABSOLUTE)
-      simple_filter = filters.StaticKalmanFilter(base_pos=locations.LEICA_ABSOLUTE)
-    # This test fails because this baseline rapidly diverges.  It'll pass
-    # for the first iteration, but then error out
-    swift_filter.update(obs_set)
-    swift_bl = swift_filter.get_baseline(obs_set)
-
-    # update the filter and compute the baseline
-    simple_filter.update(obs_set)
-    bl = simple_filter.get_baseline(obs_set)
-
-    # for now we'll behappy if the tow agree within a meter.
-    np.testing.assert_allclose(bl, swift_bl, atol=1)
-
-
-@pytest.mark.skipif(True, reason="Can't match the piksi yet!")
-def test_matches_piksi_logs(piksi_roof):
-
-  swift_filter = filters.SwiftNavDGNSSFilter(disable_raim=True,
-                                             base_pos=locations.LEICA_ABSOLUTE)
-  for obs_set in solution.solution(piksi_roof, swift_filter):
+  for obs_set in solution.solution(piksi_roof, dgnss_filter):
     # check that the single point positions match.
     np.testing.assert_allclose(obs_set['rover_spp_ecef'][['x', 'y', 'z']].values[0],
-                               obs_set['rover_pos'][['x', 'y', 'z']].values,
+                               obs_set['rover_pos'][['x', 'y', 'z']].values[0],
                                atol=0.2, rtol=1e-1)
     # if the python solver returned a non none baseline and
     # the piksi logged an rtk solution we check to see if the
@@ -116,12 +98,15 @@ def test_matches_piksi_logs(piksi_roof):
         'rover_rtk_ned' in obs_set):
       baseline = obs_set['rover_pos'][['baseline_x',
                                        'baseline_y',
-                                       'baseline_z']].values
-      piksi_baseline = obs_set['rover_rtk_ecef'][['x', 'y', 'z']]
+                                       'baseline_z']].values[0]
+      piksi_baseline = obs_set['rover_rtk_ecef'][['x', 'y', 'z']].values[0]
 
-      print "piksi", piksi_baseline.values
-      print "python", baseline
-      print "actual", locations.NOVATEL_BASELINE
+  piksi_error = np.linalg.norm(piksi_baseline - locations.NOVATEL_BASELINE)
+  error = np.linalg.norm(baseline - locations.NOVATEL_BASELINE)
+
+  # After a decent number of iterations, make sure the filter's error
+  # is less than or equal to the piksi.
+  assert 2 * piksi_error >= error
 
 
 @pytest.mark.slow

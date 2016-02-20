@@ -4,9 +4,23 @@ import numpy as np
 from gnss_analysis.filters import kalman_filter
 
 
+# It'd be nice if we could override params on a pytest.fixture
+# then we could largely reuse dgnss_filter_class in conftest.py.
+# For now we just override the whole fixture to only include
+# kalman filters.
+@pytest.fixture(params=['static_kalman', 'dynamic_kalman'])
+def kalman_filter_class(request):
+  if request.param == "static_kalman":
+    return kalman_filter.StaticKalmanFilter
+  elif request.param == "dynamic_kalman":
+    return kalman_filter.DynamicKalmanFilter
+  else:
+      raise ValueError("invalid internal test config")
+
+
 @pytest.mark.parametrize("drop_ref", [True, False])
 def test_kalman_drops_sat(synthetic_stationary_observations,
-                          drop_ref, dgnss_filter_class):
+                          drop_ref, kalman_filter_class):
   """
   Runs through several epochs of data running three filters
   side by side.  One filter receives all the observations,
@@ -19,9 +33,9 @@ def test_kalman_drops_sat(synthetic_stationary_observations,
   epochs = [x for _, x in zip(range(10),
                               synthetic_stationary_observations)]
 
-  expected_filter = dgnss_filter_class()
-  everyother_filter = dgnss_filter_class()
-  simultaneous_filter = dgnss_filter_class()
+  expected_filter = kalman_filter_class()
+  everyother_filter = kalman_filter_class()
+  simultaneous_filter = kalman_filter_class()
 
   for i, epoch in enumerate(epochs):
     expected_filter.update(epoch)
@@ -63,7 +77,7 @@ def test_kalman_drops_sat(synthetic_stationary_observations,
     np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
 
 def test_kalman_change_reference_sat(synthetic_stationary_observations,
-                                     dgnss_filter_class):
+                                     kalman_filter_class):
   """
   This runs through several epochs of data and performs a
   few sanity checks.  In particular it checks that changing
@@ -75,9 +89,9 @@ def test_kalman_change_reference_sat(synthetic_stationary_observations,
   epochs = [x for _, x in zip(range(10),
                               synthetic_stationary_observations)]
 
-  expected_filter = dgnss_filter_class()
-  actual_filter = dgnss_filter_class()
-  roundtrip_filter = dgnss_filter_class()
+  expected_filter = kalman_filter_class()
+  actual_filter = kalman_filter_class()
+  roundtrip_filter = kalman_filter_class()
 
   for epoch in epochs:
     expected_filter.update(epoch)

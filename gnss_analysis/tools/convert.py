@@ -3,10 +3,9 @@ import sys
 import time
 import logging
 import argparse
+import itertools
 import progressbar
 import pandas as pd
-
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
 from sbp.client.loggers.json_logger import JSONLogIterator
 
@@ -114,7 +113,7 @@ def convert(args):
   # if a number of observations was specified we take
   # only the first n of them and update the total count
   if args.n is not None:
-    obs_sets = (x for _, x in zip(range(args.n), obs_sets))
+    obs_sets = (x for _, x in itertools.izip(range(args.n), obs_sets))
     cnt = min(args.n, cnt)
 
   logging.info("About to parse %d epochs of observations" % cnt)
@@ -131,17 +130,7 @@ def convert(args):
   hdf5.to_hdf5(obs_sets, args.output)
 
 
-if __name__ == "__main__":
-  script_name = os.path.basename(sys.argv[0])
-  parser = argparse.ArgumentParser(description=
-                                   """
-%(script_name)s
-A tool for converting from a variety of different formats to HDF5,
-with the option of precomputing satellite states or running a
-filter before saving.
-"""
-                                    % {'script_name': script_name})
-
+def create_parser(parser):
   parser.add_argument('input', type=argparse.FileType('r'),
                       help='Specify the input file that contains the rover'
                            ' (and possibly base/navigation) observations.'
@@ -166,15 +155,17 @@ filter before saving.
   parser.add_argument('--profile', default=False, action="store_true")
   parser.add_argument("--filter", choices=['static', 'dynamic'],
                       default=None)
-  args = parser.parse_args()
+  return parser
 
+
+def post_process(args):
   # if the output file was not provided we infer it from the input
   if args.output is None:
     # split into directory and basename
     dirname = os.path.dirname(args.input.name)
     basename = os.path.basename(args.input.name)
     # add the filter name to the output file if possible
-    basename = '_'.join([args.filter, basename])
+    basename = '_'.join(filter(None, [args.filter, basename]))
     # reassmble the output name
 
     args.output = os.path.join(dirname, '%s.hdf5' % basename)
@@ -188,6 +179,24 @@ filter before saving.
                  'dynamic': filters.DynamicKalmanFilter()}
   if args.filter is not None:
     args.filter = all_filters[args.filter]
+  return args
+
+
+if __name__ == "__main__":
+  script_name = os.path.basename(sys.argv[0])
+  parser = argparse.ArgumentParser(description=
+                                   """
+%(script_name)s
+A tool for converting from a variety of different formats to HDF5,
+with the option of precomputing satellite states or running a
+filter before saving.
+"""
+                                    % {'script_name': script_name})
+  parser = create_parser(parser)
+  args = parser.parse_args()
+  args = post_process(args)
+
+  logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
   if args.profile:
     import cProfile

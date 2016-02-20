@@ -4,6 +4,7 @@ for the py.test framework.
 """
 import os
 import pytest
+import functools
 import numpy as np
 import pandas as pd
 
@@ -86,6 +87,7 @@ def synthetic_observation_set(ephemerides):
   return synthetic.synthetic_observation_set(ephemerides,
                                    rover_ecef, base_ecef,
                                    tot)
+
 
 @pytest.fixture()
 def synthetic_stationary_observations(ephemerides):
@@ -179,11 +181,20 @@ def observation_sets(datadir,
 # This fixture produces a subset of the observation_sets
 @pytest.fixture(params=['cors_short_baseline', 'cors_drops_reference'])
 def cors_observation_sets(datadir,
-                         request):
+                          request):
   return observation_sets(datadir, request)
 
 
-@pytest.fixture(params=[filters.StaticKalmanFilter,
-                        filters.DynamicKalmanFilter])
+@pytest.fixture(params=['static_kalman', 'dynamic_kalman',
+                        'raim_disable_swiftnav'])
 def dgnss_filter_class(request):
-  return request.param
+  if request.param == "static_kalman":
+    return filters.StaticKalmanFilter
+  elif request.param == "dynamic_kalman":
+    return filters.DynamicKalmanFilter
+  elif request.param == 'raim_disable_swiftnav':
+    pytest.skip("The swiftnav filter isn't working.")
+    return functools.partial(filters.SwiftNavDGNSSFilter,
+                             disable_raim=True)
+  else:
+      raise ValueError("invalid internal test config")
