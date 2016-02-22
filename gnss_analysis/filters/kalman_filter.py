@@ -145,7 +145,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # If the dropped satellite is not in the state (x) then
     # it must be the reference satellite.  In which case we
     # must first change the reference.
-    if not to_drop.isin(self.x.index):
+    if not to_drop.isin(self.x.index).any():
       self.change_reference_satellite(new_sids=new_sids)
 
     # Iteratively drop satellites from the state and rows/cols from
