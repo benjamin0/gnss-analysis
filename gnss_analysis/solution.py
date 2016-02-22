@@ -21,11 +21,13 @@ def _create_navigation_measurement(obs):
   assert 'sat_x' in obs
   assert 'pseudorange' in obs
   assert 'raw_pseudorange' in obs
+  assert np.all(obs['constellation'] == 'GPS')
+  assert np.all(obs['band'] == 1)
   assert isinstance(obs, pd.Series)
 
   lock_time = np.nan
   tot = gpstime.GpsTime(**time_utils.datetime_to_tow(obs['tot']))
-  sid = GNSSSignal(sat=obs.name, band=0, constellation=0)
+  sid = GNSSSignal(sat=obs.sat, code=0)
   # stuff all our known observations into a NavigationMeasurement object.
   nm = NavigationMeasurement(raw_pseudorange=obs.raw_pseudorange,
                              pseudorange=obs.pseudorange,

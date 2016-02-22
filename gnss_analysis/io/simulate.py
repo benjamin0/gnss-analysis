@@ -64,12 +64,15 @@ Observation Set : An observation set is intended to represent a collection
       between epochs.
       
 Observation : A pd.DataFrame that contains all measurements made by
-  a reciever.  The data frame rows are indexed by satellite id (sid).
-  Measurements from the same satellite but different frequencys are
-  treated as two seperate measurements, so it is possible to have
-  multiple rows corresponding to a single satellite, in which case
-  the frequency column should distinguish between the two.  The columns
-  will typically (but not always) include:
+  a reciever.  The DataFrame rows are indexed by a unique satellite id (sid),
+  which shoudl consist of a concatenation of the constellation, satellite
+  number and band.  Measurements from the same satellite but different
+  frequencys are treated as two seperate measurements.  In addition to the
+  actual measurement values an observation DataFrame should include a
+  'constellation', 'sat' and 'band' column which can be used to perform
+  common satellite/constellation/band joins.
+
+  In addition to satellite descriptors, the columns will typically include:
     'carrier_phase', 'raw_pseudorange', 'time', 'signal_strength',
     'lock', 'pseudorange', 'tot'.
 """
@@ -277,6 +280,7 @@ def simulate_from_rinex(rover, navigation=None, base=None):
   """
   if navigation is None:
     navigation = rinex.infer_navigation_path(rover)
+
   return simulate_from_iterators(rover=rinex.read_observation_file(rover),
                                  ephemeris=rinex.read_navigation_file(navigation),
                                  base=rinex.read_observation_file(base))

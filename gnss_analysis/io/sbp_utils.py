@@ -42,7 +42,7 @@ def get_source(msg):
   return 'rover' if msg.sender else 'base'
 
 
-def get_sid(msg):
+def get_sat(msg):
   """
   Infer the satellite id from an sbp message (or observation).
   This looks first for an sid attribute, then a prn attribute.
@@ -137,6 +137,7 @@ def observation_to_dataframe(msg, data):
       tow = msg.header.t.tow / c.MSEC_TO_SECONDS
       time = time_utils.tow_to_datetime(wn=msg.header.t.wn,
                                         tow=tow)
+      sat = get_sat(obs)
       # Convert pseudorange, carrier phase to SI units.
       v = {'raw_pseudorange': obs.P / c.CM_TO_M,
            'carrier_phase': obs.L.i + obs.L.f / c.Q32_WIDTH,
@@ -147,16 +148,16 @@ def observation_to_dataframe(msg, data):
            'epoch': time,
            # piksi propagates all observations to match the epoch
            # so the epoch and valid time are identical.
-           'time': time
+           'time': time,
+           'sat': sat,
+           'band': '1',
+           'constellation': 'GPS',
            }
       return v
 
   # Combine into a dataframe.
-
-  df = pd.DataFrame([extract_observations(o) for o in msg.obs],
-                    index=pd.Index([get_sid(o) for o in msg.obs],
-                                   name='sid'))
-
+  df = pd.DataFrame([extract_observations(o) for o in msg.obs])
+  common.normalize(df)
   return df
 
 
@@ -184,7 +185,7 @@ def ephemeris_to_dataframe(msg, data):
   # if the message is healthy and valid we emit the corresponding DataFrame
   if msg.healthy == 1 and msg.valid == 1:
     # determine the satellite id.
-    sid = get_sid(msg)
+    sat = get_sat(msg)
     msg = exclude_fields(msg)
     # make sure the satellite id attribute isn't propagated since
     # it is part of the index
@@ -199,7 +200,9 @@ def ephemeris_to_dataframe(msg, data):
                                             msg.get('toe_tow'))
     msg['toc'] = time_utils.tow_to_datetime(msg.pop('toc_wn'),
                                             msg.pop('toc_tow'))
-    eph = pd.DataFrame(msg, index=pd.Index([sid], name='sid'))
+    msg['constellation'] = 'GPS'
+    msg['band'] = np.nan
+    eph = pd.DataFrame(msg, index=pd.Index([sat], name='sat'))
     return eph
 
 
@@ -228,9 +231,8 @@ def update_ephemeris(obs, msg, data):
   # work here as well, but it is extremely slow.  This
   # version is not nearly as robust but is an order
   # of magnitude faster.
-  rows_to_overwrite = np.any(updates.isnull(), axis=1)
-  updates.iloc[rows_to_overwrite, :] = prev_ephs.iloc[rows_to_overwrite, :]
-  obs['ephemeris'] = updates
+  prev_ephs.update(updates)
+  obs['ephemeris'] = prev_ephs
   return obs
 
 

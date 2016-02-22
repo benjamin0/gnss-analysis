@@ -353,21 +353,35 @@ def calc_sat_state(eph, t=None):
   return pd.DataFrame(out, index=eph.index)
 
 
-def _update_columns(left, right):
+def _join_common_sats(left, right):
   """
   Performs a join on two DataFrames in which the intersection of the
-  indices and the union of the columns are used, giving prefernence
-  to columns in 'right'.
+  satellites and the union of the columns are used, giving prefernence
+  to columns in the 'right' DataFrame.
   """
-  # only use columns in left if the don't exist in right
+
+  merge_kwdargs = {'left_on': None,
+                   'left_index': True,
+                   'right_on': None,
+                   'right_index': True}
+
+  assert left.index.name == 'sid'
+  # if both are indexed by sid we want to merge based off 'sid', otherwise
+  # we want to preserve the sid index but merge based on 'sat'
+  if left.index.name != right.index.name:
+    merge_kwdargs['left_on'] = right.index.name
+    merge_kwdargs['left_index'] = False
+
+  # Make sure we don't need to worry about conflicting constellations
+  if not np.all(left.constellation.values == 'GPS'):
+    logging.warn("Found non GPS satellites")
+    left = left.ix[left['constellation'] == 'GPS']
+  # We want to prefer columns from right, so we simply remove overlapping
+  # columns from the left hand side.
   cols_to_use = left.columns.difference(right.columns)
-  if len(cols_to_use):
-    # if we are using any of the columns in left we concatenate across
-    # columns
-    return pd.concat([left[cols_to_use], right], axis=1, join='inner')
-  else:
-    # otherwise we only use the left's index.
-    return right.ix[left.index]
+  left = left[cols_to_use]
+  # Then perform a merge, which should keep the index of the left side
+  return pd.merge(left, right, how='inner', **merge_kwdargs)
 
 
 def has_sat_state(observation):
@@ -424,16 +438,21 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
     # if ephemerides weren't supplied make sure obs contains
     # either ephemerides or satellite state
     assert 'af0' in obs or has_sat_state(obs)
+    assert obs.index.name == 'sid'
   else:
     assert obs.index.name == 'sid'
-    assert ephemerides.index.name == 'sid'
+    assert ephemerides.index.name in ['sid', 'sat']
     # combine the base observations with available ephemeris
+    # the only variable we prefer from obs is time, so we
+    # drop that from ephemerides if it's available in both.
     if 'time' in ephemerides and 'time' in obs:
       ephemerides.drop('time', axis=1, inplace=True)
     # join the two dataframes together, adding columns, but
     # prefering columns from ephemerides
-    obs = _update_columns(obs, ephemerides)
+    obs = _join_common_sats(obs, ephemerides)
 
+  # We can't continue if we have nan raw_pseudoranges
+  assert np.all(np.isfinite(obs['raw_pseudorange']))
   # this is the apparent time of flight, not the actual (physical) one
   tof = obs['raw_pseudorange'] / c.GPS_C
   obs['tof'] = tof
@@ -458,8 +477,9 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
       #   redundant given pseudorange?
       obs['tof'] += sat_error
       obs['tot'] -= time_utils.timedelta_from_seconds(sat_error)
+
       sat_state = calc_sat_state(obs, obs['tot'])
-    obs = _update_columns(obs, sat_state)
+    obs = _join_common_sats(obs, sat_state)
 
   # compute the satellite position at the observation time
   # add the clock error to form the corrected pseudorange

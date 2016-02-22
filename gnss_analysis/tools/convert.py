@@ -91,6 +91,7 @@ def get_observation_sets(input_path, base_path=None, nav_path=None):
     # pass in an iterator over lines.
     # it's fine if base_path is None here.
     cnt = rinex.count_observations(input_path)
+
     return cnt, simulate.simulate_from_rinex(input_path, nav_path, base_path)
 
 

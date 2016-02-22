@@ -32,12 +32,12 @@ def test_single_difference(synthetic_observation_set):
   # drop a row from rover and make sure it's handled properly
   subset_rover = shuffled_rover.iloc[1:]
   actual = dgnss.single_difference(subset_rover, base_obs)
-  assert_frame_equal(actual, expected_diffs.ix[subset_rover.index].sort())
+  assert_frame_equal(actual, expected_diffs.ix[actual.index])
 
   # drop a row from rover and make sure it's handled properly
   subset_base = base_obs.iloc[1:]
   actual = dgnss.single_difference(rover_obs, subset_base)
-  assert_frame_equal(actual, expected_diffs.ix[subset_base.index].sort())
+  assert_frame_equal(actual, expected_diffs.ix[actual.index])
 
 
 def test_make_propagated_single_differences(ephemerides):
@@ -67,8 +67,7 @@ def test_make_propagated_single_differences(ephemerides):
     rover_obs = ephemeris.add_satellite_state(rover_obs, ephemerides)
     # propagate the base observations in order to get the unit vectors,
     # and in turn the expected single differences
-    prop_base = propagate.delta_tof_propagate(base_ecef, base_obs.copy(),
-                                              new_toa=toa)
+    prop_base = propagate.delta_tof_propagate(base_ecef, base_obs.copy(), new_toa=toa)
     omega_unit_vect = dgnss.omega_dot_unit_vector(base_ecef, prop_base,
                                                   expected_baseline)
     # the single differences should equal the baseline dotted with the unit vectors
@@ -143,7 +142,7 @@ def test_double_differences(ephemerides):
                                                     base_pos_ecef=base_ecef)
   ddiffs = dgnss.double_difference(sdiffs)
   # double differences agree to less than a 10th of millimeter
-  np.testing.assert_allclose(ddiffs['pseudorange'].values,
-                             expected_ddiffs, atol=1e-4)
+  np.testing.assert_allclose(ddiffs['pseudorange'].values, expected_ddiffs,
+                             atol=1e-4)
   np.testing.assert_allclose(ddiffs['carrier_phase'].values * c.GPS_L1_LAMBDA,
                              expected_ddiffs, atol=1e-4)

@@ -5,7 +5,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
-from gnss_analysis.io import rinex, simulate
+from gnss_analysis.io import rinex
 
 
 def test_parse_line():
@@ -104,8 +104,8 @@ def test_navigation(rinex_navigation):
   assert header['a1'] == 5.329070518201e-15
 
   for i, nav in enumerate(iter_nav):
-    if nav.ix['G02', 'toe'] == datetime.datetime(2016, 1, 31, 22, 0, 0):
-      assert nav.ix['G02', 'af0'] == 5.994844250381e-04
+    if nav.ix['02', 'toe'] == datetime.datetime(2016, 1, 31, 22, 0, 0):
+      assert nav.ix['02', 'af0'] == 5.994844250381e-04
       break
     # This test should pass after four iterations, if not we fail
     if i > 10:
@@ -126,7 +126,7 @@ def test_observation(rinex_observation):
 
   for i, obs in enumerate(iter_obs):
     if np.any(obs['time'] == datetime.datetime(2016, 2, 1, 12, 0, 4)):
-      np.testing.assert_array_equal(obs.ix['G02', 'carrier_phase'],
+      np.testing.assert_array_equal(obs.ix['GPS-02-1', 'carrier_phase'],
                                     np.array(126636838.718))
       break
     # This test should pass after four iterations, if not we fail
@@ -134,18 +134,25 @@ def test_observation(rinex_observation):
       assert False
 
 
-@pytest.fixture
-def rinex_with_intermixed_header(datadir):
-  basename = 'rinex_observation_with_intermixed_header.16o'
-  return datadir.join(basename).strpath
+@pytest.mark.parametrize('observation', ['short_baseline_cors/ssho032/ssho0320.16o',
+                                         'rinex_211_examples/cebr049a00.16o',
+                                         'rinex_211_examples/nnor049a00.16o',
+                                         'rinex_211_examples/rinex_2_11_observation_with_intermixed_header.16o'])
+def test_iter_observations(observation, datadir):
+  path = datadir.join(observation).strpath
+  header, iter_obs = rinex.read_observation_file(path)
+  obs = [y for _, y in zip(range(5), iter_obs)]
+  # make sure all observations are non null
+  assert all([x.size for x in obs])
+  assert len(header)
 
 
-def test_parse_with_intermixed_header(rinex_with_intermixed_header):
-  # Some RINEX files occasionally throw in header information after
-  # epoch lines.  This makes sure we can handle an example file that
-  # does that.  We just make sure it makes it through the file and
-  # catches the first and last observation.
-  header, iter_obs = rinex.read_observation_file(rinex_with_intermixed_header)
-  obs = list(iter_obs)
-  assert np.all(obs[0]['time'] == datetime.datetime(2016, 1, 1, 0, 59, 59))
-  assert np.all(obs[-1]['time'] == datetime.datetime(2016, 1, 1, 1, 0, 0))
+@pytest.mark.parametrize('navigation', ['short_baseline_cors/ssho032/ssho0320.16n',
+                                         'rinex_210_examples/nnor049a00.16n',])
+def test_iter_navigations(navigation, datadir):
+  path = datadir.join(navigation).strpath
+  header, iter_nav = rinex.read_navigation_file(path)
+  nav = [y for _, y in zip(range(5), iter_nav)]
+  # make sure all observations are non null
+  assert all([x.size for x in nav])
+  assert len(header)
