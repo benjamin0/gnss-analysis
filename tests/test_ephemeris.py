@@ -90,20 +90,20 @@ def test_join_common_sats():
                       'shared': np.arange(5.) + 2},
                       index=pd.Index(np.arange(5), name='sid'))
   one['constellation'] = 'GPS'
-  one['band'] = 1
+  one['band'] = '1'
 
   two = pd.DataFrame({'shared': np.arange(1, 6.) + 2,
                       'two': np.arange(1, 6.) + 3},
                      index=pd.Index(np.arange(1, 6), name='sid'))
   two['constellation'] = 'GPS'
-  two['band'] = 1
+  two['band'] = '1'
 
   expected = pd.DataFrame({'one': np.arange(1, 5.),
                            'shared': np.arange(1, 5.) + 2,
                            'two': np.arange(1, 5.) + 3},
                       index=pd.Index(np.arange(1, 5), name='sid'))
   expected['constellation'] = 'GPS'
-  expected['band'] = 1
+  expected['band'] = '1'
 
   actual = ephemeris._join_common_sats(one, two)
   assert np.all(actual == expected)
@@ -112,8 +112,8 @@ def test_join_common_sats():
   one['one'].values[2] = np.nan
   expected['one'].values[1] = np.nan
   actual = ephemeris._join_common_sats(one, two)
-  np.testing.assert_array_equal(actual.drop('constellation', axis=1).values,
-                                expected.drop('constellation', axis=1).values)
+  np.testing.assert_array_equal(np.array(actual.drop('constellation', axis=1).values, dtype='float'),
+                                np.array(expected.drop('constellation', axis=1).values, dtype='float'))
 
   # make sure that if one is a subset of two all the values of
   # are updated.
@@ -121,8 +121,8 @@ def test_join_common_sats():
   is_float =  (one.dtypes == 'float64').values
   one.values[:, is_float] += np.random.normal()
   should_be_two = ephemeris._join_common_sats(one, two)
-  np.testing.assert_array_equal(should_be_two.drop('constellation', axis=1).values,
-                                two.drop('constellation', axis=1).values)
+  np.testing.assert_array_equal(np.array(should_be_two.drop('constellation', axis=1).values, dtype='float'),
+                                np.array(two.drop('constellation', axis=1).values, dtype='float'))
 
   # make sure even when none of the columns for one are used, the
   # inner set of indices still is
@@ -130,8 +130,8 @@ def test_join_common_sats():
   one = one.iloc[1:]
   one.values[:, is_float] += np.random.normal()
   missing_row = ephemeris._join_common_sats(one, two)
-  np.testing.assert_array_equal(missing_row.drop('constellation', axis=1),
-                                two.iloc[1:].drop('constellation', axis=1))
+  np.testing.assert_array_equal(np.array(missing_row.drop('constellation', axis=1), dtype='float'),
+                                np.array(two.iloc[1:].drop('constellation', axis=1), dtype='float'))
 
 
 def test_add_satellite_state(ephemerides):
@@ -159,7 +159,7 @@ def test_add_satellite_state(ephemerides):
   expected['doppler'] += expected.sat_clock_error_rate * c.GPS_L1_HZ
   expected.reset_index()
   expected['constellation'] = 'GPS'
-  expected['band'] = 1
+  expected['band'] = '1'
   expected = common.normalize(expected)
 
 
@@ -190,7 +190,7 @@ def test_add_satellite_state(ephemerides):
   orig['time'] = ref_time.copy()
   orig.reset_index()
   orig['constellation'] = 'GPS'
-  orig['band'] = 1
+  orig['band'] = '1'
   orig = common.normalize(orig)
 
   actual = ephemeris.add_satellite_state(orig)
