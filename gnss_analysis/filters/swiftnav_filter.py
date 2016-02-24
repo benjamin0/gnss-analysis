@@ -20,7 +20,7 @@ class SwiftNavDGNSSFilter(TimeMatchingDGNSSFilter):
   This version of the filter simply uses the wrapped libswiftnav code,
   essentially reproducing what is happening directly on the chip.
   """
-  def __init__(self, disable_raim=False, *args, **kwdargs):
+  def __init__(self, disable_raim=True, *args, **kwdargs):
     super(SwiftNavDGNSSFilter, self).__init__(*args, **kwdargs)
     self.disable_raim = disable_raim
     # our initial guess for the rover position is to assume it's simply

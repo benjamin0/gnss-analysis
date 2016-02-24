@@ -228,6 +228,8 @@ def solution(obs_sets, dgnss_filter=None):
   """
 
   for obs_set in obs_sets:
+    # copy the dictionary so we don't accidentally mutate
+    obs_set = obs_set.copy()
     # This is similar to creating naviation measurement objects,
     # here the actual units satellite clock error is
     # taken into account to convert raw_pseudorange to pseudorange.
@@ -258,11 +260,12 @@ def solution(obs_sets, dgnss_filter=None):
       # NOTE: at this point on the piksi baseline messages are output.
       if updated and dgnss_filter.initialized:
         baseline = dgnss_filter.get_baseline(obs_set)
-        baseline.rename({k: 'baseline_%s' % k for k in baseline.index},
-                        inplace=True)
-        # upgrade to a DataFrame
-        baseline = pd.DataFrame([baseline], index=obs_set['rover_pos'].index)
-        # and join with the rover_pos
-        obs_set['rover_pos'] = obs_set['rover_pos'].join(baseline)
+        if baseline is not None:
+          baseline.rename({k: 'baseline_%s' % k for k in baseline.index},
+                          inplace=True)
+          # upgrade to a DataFrame
+          baseline = pd.DataFrame([baseline], index=obs_set['rover_pos'].index)
+          # and join with the rover_pos
+          obs_set['rover_pos'] = obs_set['rover_pos'].join(baseline)
     # NOTE: only now are observations sent from the piksi
     yield obs_set

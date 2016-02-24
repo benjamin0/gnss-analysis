@@ -13,6 +13,7 @@ from gnss_analysis import filters
 from gnss_analysis import solution
 from gnss_analysis import ephemeris
 from gnss_analysis.io import simulate, hdf5, rinex, sbp_utils
+from gnss_analysis.tools import common
 
 
 def add_satellite_state(obs_sets):
@@ -35,66 +36,6 @@ def add_satellite_state(obs_sets):
   return (add_state(x) for x in obs_sets)
 
 
-def get_observation_sets(input_path, base_path=None, nav_path=None):
-  """
-  Takes care of the logic required to determine which format an input
-  file (and optional base and navigation files) are stored in.  Once
-  the format.
-  
-  Parameters
-  ----------
-  input_path : string
-    The path to an input file.  Could be an SBP json log file, a RINEX
-    observation file or an HDF5 file.  The extension on this file is used
-    to determine the format time.
-  base_path : string
-    An optional argument which specifies the file that holds base
-    observations.
-  nav_path : string
-    An optional argument which specifies the file that holds navigation
-    messages.  For RINEX this can be left out if the navigation file
-    path is the same as the input_path with the 'o' replaced to 'n'.
-    
-  Returns
-  -------
-  cnt : int
-    The (approximate) number of observations held in the file, this helps
-    us build a progress bar to monitor conversion.
-  obs_sets : generator
-    The output of the simulate function that corresponds to the input
-    path.  Should be a generator of observation sets, each of which
-    holds rover and (optionall) ephemeris and base fields.
-  """
-  if input_path.endswith('.json'):
-    if base_path is not None or nav_path is not None:
-      raise NotImplementedError("The base and navigation arguments are not"
-                                " applicable when using an sbp log file.")
-    cnt = sbp_utils.count_rover_observation_messages(input_path)
-    return cnt, simulate.simulate_from_log(input_path)
-
-  elif input_path.endswith('.hdf5'):
-    if base_path is not None or nav_path is not None:
-      # TODO: we could easily change this
-      raise NotImplementedError("The base and navigation arguments are not"
-                                " applicable when using an HDF5 file.")
-
-    with pd.HDFStore(input_path, 'r') as store:
-      cnt = store['rover'].shape[0]
-
-    # return the observations sets from the HDF5 file
-    return cnt, simulate.simulate_from_hdf5(input_path)
-
-  elif input_path.endswith('o'):
-    # either use the explicitly provided nav path or try and infer it.
-    nav_path = nav_path or rinex.infer_navigation_path(input_path)
-    # If we want to show progress we read the whole file first, then
-    # pass in an iterator over lines.
-    # it's fine if base_path is None here.
-    cnt = rinex.count_observations(input_path)
-
-    return cnt, simulate.simulate_from_rinex(input_path, nav_path, base_path)
-
-
 def convert(args):
   """
   Interprets the arguments and runs the corresponding conversion.
@@ -103,9 +44,9 @@ def convert(args):
     raise ValueError("Expected the output path to end with either '.h5',"
                      " or '.hdf5'.")
 
-  cnt, obs_sets = get_observation_sets(args.input.name,
-                                       args.base,
-                                       args.navigation)
+  cnt, obs_sets = common.get_observation_sets(args.input.name,
+                                              args.base,
+                                              args.navigation)
 
   # optionally add the satellite state to rover and base
   if args.calc_sat_state:
@@ -154,33 +95,10 @@ def create_parser(parser):
                       help="If specified the satellite state is computed"
                            " prior to saving to HDF5.")
   parser.add_argument('--profile', default=False, action="store_true")
-  parser.add_argument("--filter", choices=['static', 'dynamic'],
+  parser.add_argument("--filter", dest="filter_name",
+                      choices=filters.lookup.keys(),
                       default=None)
   return parser
-
-
-def post_process(args):
-  # if the output file was not provided we infer it from the input
-  if args.output is None:
-    # split into directory and basename
-    dirname = os.path.dirname(args.input.name)
-    basename = os.path.basename(args.input.name)
-    # add the filter name to the output file if possible
-    basename = '_'.join(filter(None, [args.filter, basename]))
-    # reassmble the output name
-
-    args.output = os.path.join(dirname, '%s.hdf5' % basename)
-    logging.info("output path: %s" % args.output)
-  else:
-    # we only need the output path if it was specified.
-    args.output = args.output.name
-
-  # instantiate the filter if it was provided
-  all_filters = {'static': filters.StaticKalmanFilter(),
-                 'dynamic': filters.DynamicKalmanFilter()}
-  if args.filter is not None:
-    args.filter = all_filters[args.filter]
-  return args
 
 
 if __name__ == "__main__":
@@ -195,7 +113,8 @@ filter before saving.
                                     % {'script_name': script_name})
   parser = create_parser(parser)
   args = parser.parse_args()
-  args = post_process(args)
+  args.output = common.infer_output(args.output, args.input, args.filter_name)
+  args.filter = common.resolve_filters(args.filter_name)
 
   logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 

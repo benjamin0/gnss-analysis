@@ -21,7 +21,7 @@ import numpy as np
 
 from swiftnav.observation import SingleDiff
 
-from gnss_analysis import propagate
+from gnss_analysis import propagate, ephemeris
 
 
 def make_propagated_single_differences(rover, base, base_pos_ecef):
@@ -36,9 +36,10 @@ def make_propagated_single_differences(rover, base, base_pos_ecef):
   #   the satellite hadn't moved.  Currently the use of nano second
   #   precision when generating synthetic observations adds too much
   #   error to be able to discern if this is true or not.
-  prop_base = propagate.delta_tof_propagate(base_pos_ecef, base,
-                                            new_tot=rover['tot'].values)
-  return single_difference(rover, prop_base)
+  if not np.all(base['time'].values == rover['time'].values):
+    base = propagate.delta_tof_propagate(base_pos_ecef, base,
+                                         new_toa=rover['time'].values)
+  return single_difference(rover, base)
 
 
 def single_difference(rover, base):
@@ -54,6 +55,7 @@ def single_difference(rover, base):
   assert base.index.name == 'sid'
   # take only the satellites the two have in common
   rover, base = rover.align(base, axis=0, join='inner')
+  assert np.all(rover['time'] == base['time'])
   assert 'pseudorange' in rover and 'raw_pseudorange' in rover
   assert 'pseudorange' in base and 'raw_pseudorange' in base
   # this sets which variables will be differenced
@@ -71,8 +73,7 @@ def single_difference(rover, base):
   # the reason we return the base instead of the rover is that we often
   # want to know the location of satellite .
   out = base.copy()
-  out.update(sdiffs)
-  return out
+  return ephemeris._join_common_sats(out, sdiffs)
 
 
 def double_difference(sdiffs, drop_ref=True):

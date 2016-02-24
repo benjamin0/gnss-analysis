@@ -214,21 +214,22 @@ def simulate_from_iterators(rover, **kwdargs):
   def maybe_use_next(group_name, cur_obs_set, update=False):
     # If the next navigation message comes before
     # the current rover observation we update the obs_set
-    while np.any(next_obs[group_name]['epoch'] <= cur_obs_set['epoch']):
+    while np.any(next_obs[group_name]['epoch'].values <= cur_obs_set['epoch']):
       # the epoch attribute is stored at the root level of an
       # observaiton set, rather than worry about keeping all observations
       # consistent we drop the epoch variable from the observation
       if 'time' in next_obs[group_name]:
-        assert np.all(next_obs[group_name]['time'] <= cur_obs_set['epoch'])
-
+        assert np.all(next_obs[group_name]['time'].values <= cur_obs_set['epoch'])
+      # the epoch variable is only stored to make re-alignment possible, we
+      # don't want it inside the actual observation DataFrames
       no_epoch = next_obs[group_name].drop('epoch', axis=1)
-
       if update and group_name in cur_obs_set:
         # this is used for ephemeris information which typically
         # arrives gradually.  Rather than overwritting the current
         # observations we want to add (update) the new ones.
         old, new = cur_obs_set[group_name].align(no_epoch, 'outer')
-        old.update(new)
+        if not np.all(old.values == new.values):
+          old.update(new)
         cur_obs_set[group_name] = old
       else:
         # for most situations we want to completely overwrite
@@ -263,7 +264,7 @@ def simulate_from_iterators(rover, **kwdargs):
     # For all other observations we compare the time they
     # were observed to the current epoch and update accordingly.
     for group in iterators.keys():
-      maybe_use_next(group, obs_set, update=group == 'ephemeris')
+      maybe_use_next(group, obs_set, update=(group == 'ephemeris'))
 
     # and return a copy of the dict (though not a deep copy since
     # that causes uneccesary overhead.

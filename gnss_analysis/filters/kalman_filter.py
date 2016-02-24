@@ -21,8 +21,11 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
   differences.
   """
 
-  def __init__(self, *args, **kwdargs):
+  def __init__(self, subset_func=None, *args, **kwdargs):
     self.initialized = False
+    if subset_func is None:
+      subset_func = lambda x: x
+    self.subset_func = subset_func
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
@@ -291,6 +294,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     Updates the model given a set of time matched rover and base
     observations.  The update is done in place.
     """
+    rover_obs = self.subset_func(rover_obs)
+    base_obs = self.subset_func(base_obs)
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
 

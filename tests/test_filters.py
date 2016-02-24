@@ -77,6 +77,8 @@ def test_eventually_gets_synthetic_baseline(synthetic_stationary_observations,
   assert_matches_at_some_point()
 
 
+@pytest.mark.slow
+@pytest.mark.regression
 def test_agrees_with_piksi_logs(piksi_roof, dgnss_filter_class):
   """
   Tests for reasonable agreement with the piksi logs.  This is done

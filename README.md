@@ -101,7 +101,8 @@ plt.show()
 Which would produce the following image:
 ![alt tag](examples/example_filter_run.png)
 
-You can run this yourself using `python examples/example_filter_run.py`
+You can run this yourself using `python examples/example_filter_run.py`,
+or from the command line (see the *Running and Comparing Filters* section).
 
 #Conversion
 
@@ -156,3 +157,62 @@ obs_sets = simulate.simulate_from_hdf5('observations.hdf5')
 ```
 
 which would run the same analysis as above, but should do so quicker (particularly if dealing with large files.)
+
+# Running and Comparing Filters.
+
+The `compare.py` script provides a commandline method for runing and evaluating
+the performance of a single (or multiple) filters.  This is done by specifiying and
+input set of observations (in much the same way as `convert.py`) and a filter name:
+
+```
+$ python gnss_analysis/tools/compare.py --help
+usage: compare.py [-h] [--base BASE] [--navigation NAVIGATION]
+                  [--output OUTPUT] [-n N] [--profile] --filters
+                  [{static,dynamic,L1-static,swiftnav} [{static,dynamic,L1-static,swiftnav} ...]]
+                  [--draw-every DRAW_EVERY]
+                  input
+
+compare.py A tool for comparing filters.
+
+positional arguments:
+  input                 Specify the input file that contains the rover (and
+                        possibly base/navigation) observations. The file type
+                        is infered from the extension, (SBP=".json",
+                        RINEX="*o", HDF5=[".h5", ".hdf5"]) and the appropriate
+                        parser is used.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --base BASE           Optional source of base observations.
+  --navigation NAVIGATION
+                        Optional source of navigation observations.
+  --output OUTPUT       Optional output path to use, default creates one from
+                        the input path and other arguments.
+  -n N                  The number of observation sets that will be read,
+                        default uses all available.
+  --profile
+  --filters [{static,dynamic,L1-static,swiftnav} [{static,dynamic,L1-static,swiftnav} ...]]
+  --draw-every DRAW_EVERY
+                        The number of epochs between plot refreshes,
+                        refreshing every iteration (1) significantly slows
+                        down the script. (default=10)
+```
+
+For example you can run the static Kalman filter on the example data set by running,
+```
+python gnss_analysis/tools/compare.py tests/test_data/short_baseline_cors/seat032/seat0320.16o \
+  --base tests/test_data/short_baseline_cors/ssho032/ssho0320.16o \
+  --filters static
+```
+
+This should be sufficiently fast for a quick comparison, but you'll find most of the runtime
+is spent parsing the observation file.  To sped up the comparison you could first convert to HDF5,
+```
+python gnss_analysis/tools/convert.py tests/test_data/short_baseline_cors/seat032/seat0320.16o \
+  --base tests/test_data/short_baseline_cors/ssho032/ssho0320.16o \
+  --output short_baseline_cors.hdf5 --calc-sat-state
+```
+Then run the filter using the HDF5 file.
+```
+python gnss_analysis/tools/compare.py short_baseline_cors.hdf5 --filters static
+```

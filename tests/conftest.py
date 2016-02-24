@@ -3,6 +3,7 @@ This file contains configurations and additional fixtures
 for the py.test framework.
 """
 import os
+import mock
 import pytest
 import functools
 import numpy as np
@@ -206,3 +207,13 @@ def dgnss_filter_class(request):
                              disable_raim=True)
   else:
       raise ValueError("invalid internal test config")
+
+
+@pytest.fixture()
+def null_filter():
+  mock_filter = mock.Mock(filters.common.DGNSSFilter)
+  bl = pd.Series({'x': 0., 'y': 0., 'z': 0.})
+  mock_filter.get_baseline.return_value = bl
+  mock_filter.update.return_value = True
+  mock_filter.initialized = True
+  return mock_filter
