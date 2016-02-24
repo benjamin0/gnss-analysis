@@ -49,12 +49,15 @@ def baseline_error(x):
     raise ValueError("Observation set doesn't have a base observation.")
   if not 'rover_pos' in x:
     raise ValueError("Observation set doesn't have position estimates.")
-  baseline = x['rover_pos'][['baseline_x', 'baseline_y', 'baseline_z']]
-  baseline = baseline.values[0]
-  expected = baseline_from_obs_set(x)
-  error = np.linalg.norm(baseline - expected)
+  if not 'baseline_x' in x['rover_pos']:
+    error = np.nan
+  else:
+    baseline = x['rover_pos'][['baseline_x', 'baseline_y', 'baseline_z']]
+    baseline = baseline.values[0]
+    expected = baseline_from_obs_set(x)
+    error = np.linalg.norm(baseline - expected)
   return pd.DataFrame({'baseline_error': error},
-               index=x['rover_pos'].index)
+                      index=x['rover_pos'].index)
 
 
 def plot_metric(obs_sets, filters,
@@ -76,6 +79,7 @@ def plot_metric(obs_sets, filters,
   # we end up iterating through solutions and plotting the results
   # as they come in.  metric_buffer aggregates all the values fo
   # the metric to aid with plotting.
+  epoch_buffer = []
   metric_buffer = pd.DataFrame()
 
   # iterate over epochs, producing the solution set for each
@@ -83,47 +87,52 @@ def plot_metric(obs_sets, filters,
   for i, solns in enumerate(itertools.izip(*soln_sets)):
     # compute the metric for each of the filter's outputs
     next_val = pd.concat([metric(s) for s in solns], axis=1)
-    # add to the buffer
-    metric_buffer = pd.concat([metric_buffer, next_val])
 
-    if i == 0:
-      # initialize the plot if this is the first iteration
-      sns.set_style('darkgrid')
-      fig, ax = plt.subplots(1, 1)
-      plt.ion()
-      lines = plt.plot(np.arange(metric_buffer.index.size),
-                       metric_buffer.values)
-      plt.legend(filter_names)
-      plt.ylabel("%s (%s)" % (metric_name, metric_units))
-      plt.xlabel("Epochs")
-      plt.show()
-      plt.pause(0.001)
-    else:
-      # otherwise update the plot by first resetting the data of the line plots
-      for line, vals in zip(lines, metric_buffer.values.T):
-        line.set_data(np.arange(metric_buffer.index.size),
-                      vals)
-      # then (possibly) adjusting the xlimits of the plot
-      if metric_buffer.index.size > ax.get_xlim()[1]:
-        ax.set_xlim([0, 1.61 * metric_buffer.index.size])
-      # then we look at the y limits which is a bit tricker since
-      # we dont' know for sure that the values are monotonic and/or zero origin.
-      # first we look at the current limits of the data.
-      cur_lim = np.array([np.min(metric_buffer.values),
-                          np.max(metric_buffer.values)])
-      # then check if any the day falls outside the plot limits
-      if cur_lim[0] <= ax.get_ylim()[0] or cur_lim[1] >= ax.get_ylim()[1]:
-        # if it does fall outside we increase the y axis by 60 percent in a
-        # way that keeps the data centered
-        delta = 1.61 * (np.max(metric_buffer.values) - np.min(metric_buffer.values))
-        mid = np.mean(cur_lim)
-        new_lim = [mid - delta / 2, mid + delta / 2]
-        ax.set_ylim(new_lim)
-      # the draw function takes a lot of computation time, by only drawing every
-      # so often we can keep the computation bottleneck the filter, not the plotting
-      if np.mod(i, draw_every) == 0:
-        plt.draw()
+    if np.all(np.isfinite(next_val)):
+      epoch_buffer.append(i)
+      # add to the buffer
+      metric_buffer = pd.concat([metric_buffer, next_val])
+
+      if len(epoch_buffer) == 1:
+        # initialize the plot if this is the first iteration
+        sns.set_style('darkgrid')
+        fig, ax = plt.subplots(1, 1)
+        plt.ion()
+        lines = plt.plot(epoch_buffer,
+                         metric_buffer.values)
+        plt.legend(filter_names)
+        plt.ylabel("%s (%s)" % (metric_name, metric_units))
+        plt.xlabel("Epochs")
+        plt.show()
         plt.pause(0.001)
+      else:
+        # otherwise update the plot by first resetting the data of the line plots
+        for line, vals in zip(lines, metric_buffer.values.T):
+          line.set_data(epoch_buffer,
+                        vals)
+        # then (possibly) adjusting the xlimits of the plot
+        if epoch_buffer[-1] > ax.get_xlim()[1]:
+          ax.set_xlim([0, 1.61 * epoch_buffer[-1]])
+        # then we look at the y limits which is a bit tricker since
+        # we dont' know for sure that the values are monotonic and/or zero origin.
+        # first we look at the current limits of the data.
+        cur_lim = np.array([np.min(metric_buffer.values),
+                            np.max(metric_buffer.values)])
+        # then check if any the day falls outside the plot limits
+        if cur_lim[0] <= ax.get_ylim()[0] or cur_lim[1] >= ax.get_ylim()[1]:
+          # if it does fall outside we increase the y axis by 60 percent in a
+          # way that keeps the data centered
+          delta = 1.61 * (np.max(metric_buffer.values) - np.min(metric_buffer.values))
+          mid = np.mean(cur_lim)
+          new_lim = [mid - delta / 2, mid + delta / 2]
+          ax.set_ylim(new_lim)
+        # the draw function takes a lot of computation time, by only drawing every
+        # so often we can keep the computation bottleneck the filter, not the plotting
+        if np.mod(i, draw_every) == 0:
+          plt.draw()
+          plt.pause(0.001)
+
+  import ipdb; ipdb.set_trace()
 
 
 def compare(args):

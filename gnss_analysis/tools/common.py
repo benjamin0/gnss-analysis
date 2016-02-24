@@ -78,7 +78,7 @@ def infer_output(output, input, filter_name):
     output_name = os.path.join(dirname, '%s.hdf5' % basename)
   else:
     # we only need the output path if it was specified.
-    output_name = output.name
+    output_name = getattr(output, 'name', output)
   return output_name
 
 

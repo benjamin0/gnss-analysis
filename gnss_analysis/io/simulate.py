@@ -282,12 +282,15 @@ def simulate_from_rinex(rover, navigation=None, base=None):
   if navigation is None:
     navigation = rinex.infer_navigation_path(rover)
 
+  if navigation is None:
+    logging.warn("No navigation file found.")
+
   return simulate_from_iterators(rover=rinex.read_observation_file(rover),
                                  ephemeris=rinex.read_navigation_file(navigation),
                                  base=rinex.read_observation_file(base))
 
 
-def simulate_from_hdf5(hdf5_file):
+def simulate_from_hdf5(hdf5_file, **kwdargs):
   """
   Creates an iterable of observation sets from an HDF5 file.
   This is done by creating iterators which yield rover, ephemeris

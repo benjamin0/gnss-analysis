@@ -111,7 +111,7 @@ def create_single_difference_objects(sdiffs):
   assert sdiffs.index.name == 'sid'
   for sid, sdiff in sdiffs.iterrows():
     # so far we assume single differences are from L1 GPS signals
-    assert sdiff.band == 1
+    assert sdiff.band == '1'
     assert sdiff.constellation == 'GPS'
 
     yield SingleDiff(pseudorange=sdiff.pseudorange,
@@ -121,7 +121,7 @@ def create_single_difference_objects(sdiffs):
                      sat_vel=sdiff[['sat_v_x', 'sat_v_y', 'sat_v_z']].values,
                      snr=sdiff.signal_noise_ratio,
                      lock_counter=sdiff.lock,
-                     sid={'sat':sdiff.sat, 'code': 0})
+                     sid={'sat':int(sdiff.sat), 'code': 0})
 
 
 def omega_dot_unit_vector(base_pos, sat, baseline_estimate):
