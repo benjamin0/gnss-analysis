@@ -83,10 +83,8 @@ def mk_ephemeris(eph):
 
   kepler['toc'] = time_utils.datetime_to_tow(eph['toc'])
   # we assume L1 signals for the moment
-  band = eph.get('band', 1)
-  if np.isnan(band):
-    band = 1
-  assert band == 1
+  band = eph.get('band', '1')
+  assert band == '1'
   return Ephemeris(toe=time_utils.datetime_to_tow(eph['toe']),
                    valid=eph['valid'],
                    healthy=eph['healthy'],
@@ -94,7 +92,7 @@ def mk_ephemeris(eph):
                    ura=eph['ura'],
                    fit_interval=eph['fit_interval'],
                    sid={'sat': eph.sat,
-                        'code': band - 1})
+                        'code': int(band) - 1})
 
 
 def ffill_panel(panel, axis=1):

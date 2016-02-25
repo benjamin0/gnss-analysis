@@ -128,10 +128,10 @@ def test_cors_baseline(cors_observation_sets, dgnss_filter_class, request):
                        first['base_info']['y'],
                        first['base_info']['z']])
   expected_baseline = rover_pos - base_pos
-  dgnss_filter = dgnss_filter_class(base_pos=base_pos)
+  dgnss_filter = dgnss_filter_class(single_band=True)
 
   # This iterates over solutions until the baseline gets within
-  # three meters of the known solution at which point it will return True.
+  # 1 meter of the known solution at which point it will return True.
   # If that never happens it returns False.  We could clamp down the
   # accuracy further, but some of the test datasets don't contain
   # sufficient number of observations.
@@ -142,6 +142,41 @@ def test_cors_baseline(cors_observation_sets, dgnss_filter_class, request):
                               'baseline_y',
                               'baseline_z']].values
       if np.linalg.norm(bl - expected_baseline) <= 1.:
+        return True
+    return False
+
+  assert eventually_close()
+
+
+@pytest.mark.slow
+@pytest.mark.regression
+def test_multiband_cors_baseline(multignss_cors_35km_baseline, dgnss_filter_class):
+  """
+  Tests that the filter is capable of estimating the baseline for the
+  cors short baseline to less than 1m accuracy within a reasonable
+  amount of time.
+  """
+  # Extract the known positions from the info attributes
+  first = multignss_cors_35km_baseline.next()
+  rover_pos = np.array([first['rover_info']['x'],
+                        first['rover_info']['y'],
+                        first['rover_info']['z']])
+  base_pos = np.array([first['base_info']['x'],
+                       first['base_info']['y'],
+                       first['base_info']['z']])
+  expected_baseline = rover_pos - base_pos
+  dgnss_filter = dgnss_filter_class(single_band=False)
+
+  # This iterates over solutions until the baseline gets within
+  # 0.5 meters of the known solution at which point it will return True.
+  # If that never happens it returns False.
+  def eventually_close():
+    for _, soln in zip(range(100), solution.solution(multignss_cors_35km_baseline,
+                                                     dgnss_filter)):
+      bl = soln['rover_pos'][['baseline_x',
+                              'baseline_y',
+                              'baseline_z']].values
+      if np.linalg.norm(bl - expected_baseline) <= 0.5:
         return True
     return False
 

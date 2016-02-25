@@ -21,11 +21,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
   differences.
   """
 
-  def __init__(self, subset_func=None, *args, **kwdargs):
+  def __init__(self, *args, **kwdargs):
     self.initialized = False
-    if subset_func is None:
-      subset_func = lambda x: x
-    self.subset_func = subset_func
     super(KalmanFilter, self).__init__(*args, **kwdargs)
 
   def initialize_filter(self, rover_obs, base_obs):
@@ -42,6 +39,18 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     """
     raise NotImplementedError()
 
+  def relative_idx_to_absolute_idx(self, band, rel_idx):
+    """
+    Converts a relative index in a set of ambiguities to an absolute
+    index in the complete state vector:
+    (baseline + dynamic states + ambiguity states for all bands)."
+
+    """
+    abs_idx = self.baseline_states.size + rel_idx
+    if band == '2':
+      abs_idx += self.ambiguity_states['1'].size
+    return abs_idx
+
   def get_baseline(self, obs_set):
     """
     Returns the baseline corresponding to the current state.
@@ -53,7 +62,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
       # For now we make just return the current filter state.
       return self.x.iloc[:self.n_dim]
 
-  def choose_reference_sat(self, new_sids):
+  def choose_reference_sat(self, new_sids, band):
     """
     Uses the current set of active sids and the set of new sids to
     choose a new reference satellite (one that is active in both
@@ -62,41 +71,41 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # For now we just set the new reference to be the next
     # common satellite.  Note at this point the active sids
     # actually corresponds to the active sids at the last iteration.
-    common_sids = self.active_sids.intersection(new_sids)
+    common_sids = self.active_sids[band].intersection(new_sids)
     # Just grab the first one in common
     # TODO: maybe choose based off of signal strength?
     return common_sids.values[0]
 
 
-  def get_reference_satellite(self):
+  def get_reference_satellite(self, band):
     """
     Returns the sid for the reference satellite.
     """
     # The current reference is the satellite that isn't included
     # in the integer ambiguity index.
-    cur_ref = self.active_sids.difference(self.x.index[self.ambiguity_states_idx:])
+    cur_ref = self.active_sids[band].difference(self.ambiguity_states[band].index)
     # There should only ever be one such satellite.
     return common.get_unique_value(cur_ref)
 
 
-  def change_reference_satellite(self, new_ref=None, new_sids=None):
+  def change_reference_satellite(self, band, new_ref=None, new_sids=None):
     """
     Performs a transformation that swaps the old reference satellite
     for a new reference.  The filter state and covariance are
     then modified in place.
     """
     # infer the current reference satellite
-    cur_ref = self.get_reference_satellite()
+    cur_ref = self.get_reference_satellite(band)
 
     # choose the new reference if it wasn't specified
     if new_ref is None:
       if new_sids is None:
         raise ValueError("Need either a new reference or new sat ids to"
                          " decide which satellite to use as reference.")
-      new_ref = self.choose_reference_sat(new_sids)
+      new_ref = self.choose_reference_sat(new_sids, band)
 
     # make sure the new reference was around last time.
-    assert new_ref in self.active_sids.values
+    assert new_ref in self.active_sids[band].values
 
     # avoid unnecessary computation
     if new_ref == cur_ref:
@@ -107,7 +116,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     logging.debug("Changing reference from %s to %s" % (cur_ref, new_ref))
 
     # determine which index in x corresponds to the new reference
-    new_ind = self.x.index.get_indexer([new_ref])
+    new_ind = self.ambiguity_states[band].index.get_indexer([new_ref])
 
     # build an orthogonal matrix that will swap references, this is
     # done by subtracting out the ambiguities corresponding to the
@@ -122,24 +131,31 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # Which is accomplished by creating an identity matrix, then
     # replacing the column corresponding to the new reference with
     # negative ones.
-    K = np.eye(self.x.size)
-    # The first three indices are the position, we don't want
-    # to mess with those.
-    K[self.ambiguity_states_idx:, new_ind] = -1.
-    self.K = K
+    K = np.eye(self.ambiguity_states[band].size)
+    K[:, new_ind] = -1.
 
     # Apply the transformation to swap the cur_ref for the new one
-    self.x.values[:] = np.dot(K, self.x)
-    # reflect the change in the index of x
-    new_index = self.x.index.insert(new_ind, cur_ref)
+    self.ambiguity_states[band].values[:] = np.dot(K, self.ambiguity_states[band].values)
+    # reflect the change in the index of the ambiguity states
+    new_index = self.ambiguity_states[band].index.insert(new_ind, cur_ref)
     new_index = new_index.delete(new_ind + 1)
-    self.x.index = new_index
+    self.ambiguity_states[band].index = new_index
 
     # And apply the transformation to the covariance matrix as well.
+    # To do this, build an identity matrix the size of P, but with the K we
+    # created before in the relevant dimensions (for L1 or L2).
+    Ks = [np.eye(self.ambiguity_states_idx)]
+    for b in self.bands:
+      if b == band:
+        Ks.append(K)
+      else:
+        Ks.append(np.eye(self.ambiguity_states[band].size))
+    K = scipy.linalg.block_diag(*Ks)
+
     self.P = np.dot(np.dot(K, self.P), K.T)
 
 
-  def drop_satellites(self, to_drop, new_sids):
+  def drop_satellites(self, to_drop, new_sids, band):
     """
     Drops satellites from the filter state/covariance, if any
     of the satellites being dropped are reference satellites
@@ -148,31 +164,32 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # If the dropped satellite is not in the state (x) then
     # it must be the reference satellite.  In which case we
     # must first change the reference.
-    if not to_drop.isin(self.x.index).any():
-      self.change_reference_satellite(new_sids=new_sids)
+    if not to_drop.isin(self.ambiguity_states[band].index).any():
+      self.change_reference_satellite(band, new_sids=new_sids)
 
     # Iteratively drop satellites from the state and rows/cols from
     # the covariance matrix.
     for drop in to_drop:
-      ind = common.get_unique_value(self.x.index.get_indexer([drop]))
-      self.x = self.x.drop(drop)
-      self.P = np.delete(np.delete(self.P, ind, axis=0), ind, axis=1)
-      self.active_sids = self.active_sids.drop(drop)
+      ind = common.get_unique_value(self.ambiguity_states[band].index.get_indexer([drop]))
+      abs_idx = self.relative_idx_to_absolute_idx(band, ind)
+      self.ambiguity_states[band] = self.ambiguity_states[band].drop(drop)
+      self.P = np.delete(np.delete(self.P, abs_idx, axis=0), abs_idx, axis=1)
+      self.active_sids[band] = self.active_sids[band].drop(drop)
 
 
-  def add_satellites(self, to_add):
+  def add_satellites(self, to_add, band):
     """
     Updates the filter state and covariance to contain new satellites.
     """
-    self.x = self.x.append(pd.Series([0], index=to_add))
+    self.ambiguity_states[band] = self.ambiguity_states[band].append(pd.Series([0], index=to_add))
     new_P = np.zeros(np.array(self.P.shape) + to_add.size)
     new_P[:-to_add.size, :-to_add.size] = self.P
-    new_P[-to_add.size:, -to_add.size:] = (self.sig_init_p / c.GPS_L1_LAMBDA) * np.eye(to_add.size)
+    new_P[-to_add.size:, -to_add.size:] = (self.sig_init_p / c.WAVELENGTHS[band]) * np.eye(to_add.size)
     self.P = new_P
-    self.active_sids = self.active_sids.append(to_add)
+    self.active_sids[band] = self.active_sids[band].append(to_add)
 
 
-  def update_active_satellites(self, new_sids):
+  def update_active_satellites(self, new_sids, band):
     """
     This takes care of add/drop satellite logic.
     """
@@ -181,25 +198,25 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # in the state (x). For now x should only contain active
     # satellites, but in the future we may want to leave
     # deactivated satellites around.
-    all_sids = self.active_sids.union(self.x.index[self.ambiguity_states_idx:])
+    all_sids = self.active_sids[band].union(self.ambiguity_states[band].index)
     # are all the satellites already active
-    if np.all(new_sids == self.active_sids):
+    if np.all(new_sids == self.active_sids[band]):
       return
 
     # Any satellites that aren't in the set of new satellites
     # but were active must have been lost, so we drop them
-    to_drop = self.active_sids.difference(new_sids)
+    to_drop = self.active_sids[band].difference(new_sids)
     if to_drop.size:
-      self.drop_satellites(to_drop, new_sids)
+      self.drop_satellites(to_drop, new_sids, band)
 
     # Any satellites that are in the new set but not in the
     # active set must be new so we add them.
     to_add = new_sids.difference(all_sids)
     if to_add.size:
-      self.add_satellites(to_add)
+      self.add_satellites(to_add, band)
 
 
-  def double_difference_observation_model(self, sdiffs):
+  def double_difference_observation_model(self, sdiffs, wavelength):
     """
     Builds the double differenced (or in this case, orthogonal equivalent
     of the double difference) observation model.
@@ -216,6 +233,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
       A 2d array that represents the covariance of noise in the observation
       model.  In otherwords, it tells us how confident we are in the values
       of y.
+
+    # TODO: Add in frequency dependent bias terms.
+
     """
     # This is from equation 1 in Chang, Paige Yin, it is essentially
     # the unit vector pointing from the base receiver to each satellite
@@ -223,9 +243,9 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # As they mention, it could be replaced by one but for high precision
     # applications should be taken into account.
     omega_e = dgnss.omega_dot_unit_vector(self.base_pos, sdiffs,
-                                          self.x.values[:self.n_dim])
+                                          self.baseline_states.values[:self.n_dim])
     # E_k = omega_e / lambda (see equation 8).
-    E = omega_e / c.GPS_L1_LAMBDA
+    E = omega_e / wavelength
 
     # m is the number of satellites
     m = sdiffs.shape[0]
@@ -238,7 +258,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
     # sig is the ratio of the carrier phase and pseudorange
     # standard deviations in units of cycles.
-    sig_ratio = self.sig_cp / (self.sig_pr / c.GPS_L1_LAMBDA)
+    sig_ratio = self.sig_cp / (self.sig_pr / wavelength)
 
     # After applying P to the single differences we will still have m
     # observations, but the first will contain unknown errors corresponding
@@ -250,7 +270,7 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # ratio of carrier phase to pseudorange noises, then apply
     # P_bar to get a new observation vector, y, which loosely corresponds to
     # double differenced observations with error covariance sig^2 * I.
-    pr_in_wavelengths = sdiffs['pseudorange'].values / c.GPS_L1_LAMBDA
+    pr_in_wavelengths = sdiffs['pseudorange'].values / wavelength
     y = np.concatenate([np.dot(P_bar, sdiffs['carrier_phase'].values),
                         sig_ratio * np.dot(P_bar, pr_in_wavelengths)])
 
@@ -274,18 +294,34 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # for the integer abiguities.  Note that these are only applied
     # to the carrier phase.
     n_rows, n_cols = PE.shape
-    H = np.asarray(np.bmat([[PE,
-                             np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim))),
-                             F],
-                            [sig_ratio * PE,
-                             np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim))),
-                             np.zeros_like(F)]]))
+
+    H_baseline = np.asarray(np.bmat([[PE, np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim)))],
+                                     [sig_ratio * PE, np.zeros((n_rows, (self.ambiguity_states_idx - self.n_dim)))]]))
+
+    H_ambiguity = np.vstack((F, np.zeros_like(F)))
+
+    return y, H_baseline, H_ambiguity
+
+  def observation_model(self, sdiffs):
+    y = np.empty(0)
+    H_baselines = np.empty((0, self.ambiguity_states_idx))
+    H_ambiguities = []
+    for band in self.bands:
+      y_obs, H_baseline, H_ambiguity = self.double_difference_observation_model(sdiffs[band], c.WAVELENGTHS[band])
+      y = np.append(y, y_obs)
+      H_baselines = np.vstack((H_baselines, H_baseline))
+      H_ambiguities.append(H_ambiguity)
+
+    H_ambiguities = scipy.linalg.block_diag(*H_ambiguities)
+
+    H = np.hstack((H_baselines, H_ambiguities))
 
     # R is the observation noise.  Notice that because we rescaled above
     # our observation noise has a constant diagonal.  Also note that
     # because we've defined sig_cp to be the noise in an observation
     # of carrier_phase and because R is the noise in the double differenced
     # carrier phase, we have to multiply by 4.
+    # TODO: Account for different noise properties for L1 and L2
     R = 4 * self.sig_cp * np.eye(H.shape[0])
     return y, H, R
 
@@ -294,8 +330,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     Updates the model given a set of time matched rover and base
     observations.  The update is done in place.
     """
-    rover_obs = self.subset_func(rover_obs)
-    base_obs = self.subset_func(base_obs)
+    rover_obs = self.get_obs_in_bands(rover_obs)
+    base_obs = self.get_obs_in_bands(base_obs)
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
 
@@ -305,27 +341,35 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     # Compute the single differences.  get_single_diffs is
     # expected to take care of logic such as determining if there
     # was a loss of lock, and dropping such satellites.
-    sdiffs = self.get_single_diffs(rover_obs, base_obs, propagate_base=False)
+    all_sdiffs = self.get_single_diffs(rover_obs, base_obs, propagate_base=False)
+    sdiffs = {}
+    for band in self.bands:
+      sdiffs[band] = all_sdiffs[all_sdiffs.band == band]
 
     # Here we check if we've added or lost any satellites
-    if sdiffs.index.sym_diff(self.active_sids).size:
-      self.update_active_satellites(sdiffs.index)
+    for band in self.bands:
+      if sdiffs[band].index.sym_diff(self.active_sids[band]).size:
+        self.update_active_satellites(sdiffs[band].index, band)
 
     # We expect the sdiffs to be in the same order as the ambiguity states
     # Here we simply make sure that's the case
-    expected_order = self.x.index[self.ambiguity_states_idx:].insert(0, self.get_reference_satellite())
+    for band in self.bands:
+      expected_order = self.ambiguity_states[band].index.insert(0, self.get_reference_satellite(band))
+      if not np.all(sdiffs[band].index == expected_order):
+        sdiffs[band] = sdiffs[band].ix[expected_order]
 
-    if not np.all(sdiffs.index == expected_order):
-      sdiffs = sdiffs.ix[expected_order]
-
-    # if these fail we clearly didn't update the active satellites
-    # properly.
-    assert sdiffs.index.size == self.active_sids.size
-    assert np.all(sdiffs.index.isin(self.active_sids))
+      # if these fail we clearly didn't update the active satellites
+      # properly.
+      assert sdiffs[band].index.size == self.active_sids[band].size
+      assert np.all(sdiffs[band].index.isin(self.active_sids[band]))
 
     # the observation vector, linear operator and observation noise
-    y, H, R = self.double_difference_observation_model(sdiffs)
+    y, H, R = self.observation_model(sdiffs)
     # the process model
+
+    self.x = pd.concat([self.baseline_states])
+    for band in self.bands:
+      self.x = pd.concat([self.x, self.ambiguity_states[band]])
     F, Q = self.process_model()
 
     # use the process model to predict x_{k|k-1}
@@ -335,14 +379,19 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
     # x is a pandas Series, we want to keep the index but fill the values
     self.x.values[:] = x
+    self.baseline_states.values[:] = self.x.values[:self.ambiguity_states_idx]
+    last_idx = self.baseline_states.size
+    for band in self.bands:
+      self.ambiguity_states[band].values[:] = self.x.values[last_idx:(last_idx + self.ambiguity_states[band].size)]
+      last_idx += self.ambiguity_states[band].size
     # P is an ndarray so we just overwrite it.
     self.P = P
 
 
 class StaticKalmanFilter(KalmanFilter):
 
-  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
-               sig_pr=3., sig_init_p=5e5, *args, **kwdargs):
+  def __init__(self, sig_x=2., sig_z=10., sig_cp=0.02,
+               sig_pr=3., sig_init_p=5e8, *args, **kwdargs):
     """
     Initializes a Kalman Filter with a static process model with the option to
     specify observation and process noise.
@@ -382,20 +431,25 @@ class StaticKalmanFilter(KalmanFilter):
     state and covariance matrices
     """
     assert not self.initialized
-    self.active_sids = rover_obs.index.intersection(base_obs.index)
+    self.active_sids = {}
+    for band in self.bands:
+      self.active_sids[band] = rover_obs[rover_obs.band == band].index.intersection(base_obs.index)
     # A series containing the n, e and d components of the baseline (in meters)
     pos = pd.Series(np.zeros(self.n_dim), index=['x', 'y', 'z'])
     # sets the reference satellite to be the first in the active set and
     # creates the state vector of double differenced ambiguities.
-    amb = pd.Series(np.zeros(self.active_sids.size - 1),
-                    index=self.active_sids[1:])
-    # the state vector is a concatenation of the position and ambiguities
-    self.x = pd.concat([pos, amb])
-    self.P = np.eye(self.x.size)
+    self.ambiguity_states = {}
+    for band in self.bands:
+      self.ambiguity_states[band] = pd.concat([pd.Series(np.zeros((self.active_sids[band].size - 1)),
+                                            index=self.active_sids[band][1:])])
+    self.baseline_states = pos
     # initialize the position covariance
-    self.P[:self.n_dim] *= self.sig_init_p
+    self.P = np.ones(self.n_dim) * self.sig_init_p
     # and the ambiguity covariance.
-    self.P[self.ambiguity_states_idx:] *= self.sig_init_p / c.GPS_L1_LAMBDA
+    for band in self.bands:
+      self.P = np.hstack((self.P, np.ones_like(self.ambiguity_states[band]) *
+                          self.sig_init_p / c.WAVELENGTHS[band]))
+    self.P = np.diag(self.P)
     self.initialized = True
 
   def process_model(self):
@@ -432,10 +486,10 @@ class DynamicKalmanFilter(KalmanFilter):
 
   def __init__(self,
                sig_dynamics=1.,
-               sig_z=0.01,
+               sig_z=10.,
                sig_cp=0.02,
                sig_pr=3.,
-               sig_init_p=5e5,
+               sig_init_p=5e8,
                sig_init_v=10.,
                sig_init_a=0.1,
                correlation_time=10.,
@@ -491,24 +545,30 @@ class DynamicKalmanFilter(KalmanFilter):
     state and covariance matrices
     """
     assert not self.initialized
-    self.active_sids = rover_obs.index.intersection(base_obs.index)
+    self.active_sids = {}
+    for band in self.bands:
+      self.active_sids[band] = rover_obs[rover_obs.band == band].index.intersection(base_obs.index)
     # A series containing the n, e and d components of the baseline (in meters)
     pos = pd.Series(np.zeros(self.dynamic_states * self.n_dim),
                     index=['x', 'y', 'z', 'x_vel', 'y_vel', 'z_vel', 'x_acc', 'y_acc', 'z_acc'])
     # sets the reference satellite to be the first in the active set and
     # creates the state vector of double differenced ambiguities.
-    amb = pd.Series(np.zeros(self.active_sids.size - 1),
-                    index=self.active_sids[1:])
-    # the state vector is a concatenation of the position and ambiguities
-    self.x = pd.concat([pos, amb])
-    self.P = np.eye(self.x.size)
+    self.ambiguity_states = {}
+    for band in self.bands:
+      n_active_sids = self.active_sids[band].size - 1
+      if n_active_sids > 0:
+        self.ambiguity_states[band] = pd.concat([pd.Series(np.zeros((n_active_sids)),
+                                                           index=self.active_sids[band][1:])])
+    self.baseline_states = pos
+    self.P = np.ones(self.ambiguity_states_idx)
     # initialize the position covariance
     self.P[:self.n_dim] *= self.sig_init_p
     self.P[self.n_dim:(2 * self.n_dim)] *= self.sig_init_v
     self.P[(2 * self.n_dim):(3 * self.n_dim)] *= self.sig_init_a
     # and the ambiguity covariance.
-    self.P[self.ambiguity_states_idx:] *= self.sig_init_p / c.GPS_L1_LAMBDA
-
+    for band in self.bands:
+      self.P = np.hstack((self.P, np.ones_like(self.ambiguity_states[band]) * self.sig_init_p / c.WAVELENGTHS[band]))
+    self.P = np.diag(self.P)
     self.initialized = True
 
   def process_model(self):

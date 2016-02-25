@@ -17,10 +17,14 @@ def kalman_filter_class(request):
   else:
       raise ValueError("invalid internal test config")
 
+@pytest.fixture()
+def band():
+  # Right now, only test filter internals with single band.
+  return '1'
 
 @pytest.mark.parametrize("drop_ref", [True, False])
 def test_kalman_drops_sat(synthetic_stationary_observations,
-                          drop_ref, kalman_filter_class):
+                          drop_ref, kalman_filter_class, band):
   """
   Runs through several epochs of data running three filters
   side by side.  One filter receives all the observations,
@@ -44,11 +48,11 @@ def test_kalman_drops_sat(synthetic_stationary_observations,
     # but only do so after the first iteration
     if i > 0:
       epoch_dropped = epoch.copy()
-      cur_ref = everyother_filter.get_reference_satellite()
+      cur_ref = everyother_filter.get_reference_satellite(band)
       if drop_ref:
         to_drop = cur_ref
       else:
-        non_ref = everyother_filter.active_sids.drop(cur_ref)
+        non_ref = everyother_filter.active_sids[band].drop(cur_ref)
         to_drop = non_ref.values[np.random.randint(non_ref.size)]
       epoch_dropped['rover'] = epoch_dropped['rover'].drop(to_drop)
     else:
@@ -77,7 +81,7 @@ def test_kalman_drops_sat(synthetic_stationary_observations,
     np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
 
 def test_kalman_change_reference_sat(synthetic_stationary_observations,
-                                     dgnss_filter_class):
+                                     dgnss_filter_class, band):
   """
   This runs through several epochs of data and performs a
   few sanity checks.  In particular it checks that changing
@@ -98,15 +102,15 @@ def test_kalman_change_reference_sat(synthetic_stationary_observations,
     actual_filter.update(epoch)
     roundtrip_filter.update(epoch)
 
-    cur_ref = actual_filter.get_reference_satellite()
-    non_ref = actual_filter.active_sids.drop(cur_ref)
+    cur_ref = actual_filter.get_reference_satellite(band)
+    non_ref = actual_filter.active_sids[band].drop(cur_ref)
     new_ref = non_ref.values[np.random.randint(non_ref.size)]
     # change to the new (randomly selected) reference
-    actual_filter.change_reference_satellite(new_ref=new_ref)
+    actual_filter.change_reference_satellite(band, new_ref=new_ref)
 
     # change to the new reference, then change right back.
-    roundtrip_filter.change_reference_satellite(new_ref)
-    roundtrip_filter.change_reference_satellite(cur_ref)
+    roundtrip_filter.change_reference_satellite(band, new_ref)
+    roundtrip_filter.change_reference_satellite(band, cur_ref)
 
     # get the baselines
     roundtrip_bl = roundtrip_filter.get_baseline(epoch)

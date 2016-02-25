@@ -23,7 +23,7 @@ class DGNSSFilter(object):
   a DGNSS filter used to estimate baselines.
   """
 
-  def __init__(self, base_pos=None):
+  def __init__(self, base_pos=None, single_band=True):
     if base_pos is None:
       self.base_known = False
       self.base_pos = None
@@ -31,6 +31,14 @@ class DGNSSFilter(object):
       self.base_known = True
       self.base_pos = base_pos
     self.prev_sdiffs = None
+    self.single_band = single_band
+    if self.single_band:
+      self.bands = ['1']
+    else:
+      self.bands = ['1', '2']
+
+  def get_obs_in_bands(self, obs):
+    return obs[obs.band.isin(self.bands)]
 
   def maybe_update_base_position(self, base_obs):
     """
