@@ -15,6 +15,7 @@ from gnss_analysis.io import common
 
 
 def observation(ephemerides, location_ecef, toa,
+                freq=c.GPS_L1_HZ,
                 rover_clock_error=0.,
                 include_sat_error=True):
   """
@@ -84,7 +85,7 @@ def observation(ephemerides, location_ecef, toa,
   raw_pseudorange = (tof_sat + rover_clock_error) * c.GPS_C
   # but the carrier phase does not.
   # TODO: add ambiguity to the carrier phase.
-  carrier_phase = tof * c.GPS_L1_HZ
+  carrier_phase = tof * freq
 
   # Here we compute the doppler from the satellite velocity dotted
   # with the unit vector between satellite and receiver.
@@ -94,7 +95,8 @@ def observation(ephemerides, location_ecef, toa,
   unit_vect = dgnss.omega_dot_unit_vector(location_ecef, sat_state,
                                           np.zeros(3))
   sat_velocity = sat_state[['sat_v_x', 'sat_v_y', 'sat_v_z']]
-  doppler = -np.sum(sat_velocity * unit_vect, axis=1) / c.GPS_L1_LAMBDA
+  wavelength = c.GPS_C / freq
+  doppler = -np.sum(sat_velocity * unit_vect, axis=1) / wavelength
 
   # TODO: There is some disagreement between columns names in data returned
   # by the rinex parsers and by sbp log parsers.  We should reconsile those

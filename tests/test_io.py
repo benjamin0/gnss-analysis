@@ -33,7 +33,8 @@ def observations_and_solutions(observation_sets,
   elif request.param == "solution":
     from gnss_analysis import solution
     from gnss_analysis.filters import StaticKalmanFilter
-    return solution.solution(observation_sets, StaticKalmanFilter())
+    return solution.solution(observation_sets,
+                             static_kalman=StaticKalmanFilter())
   else:
     raise NotImplementedError("Unknown param %s" % request.param)
 
@@ -61,3 +62,4 @@ def test_roundtrip_to_hdf5(observations_and_solutions,
 
   for expected, actual in itertools.izip_longest(obs_sets, hdf5_sets):
     common.assert_observation_sets_equal(expected, actual)
+

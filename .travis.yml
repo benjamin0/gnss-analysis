@@ -63,7 +63,8 @@ install:
   - pip install -e ./
 
 script:
-  - py.test -m "not slow" tests/ && py.test -m "slow" tests/
+  # the -x makes the tests fail after the first failure.
+  - py.test -x -m "not slow" tests/ && py.test -x -m "slow" tests/
 
 after_success:
   - coveralls

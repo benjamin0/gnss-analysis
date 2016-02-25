@@ -203,14 +203,14 @@ def cors_observation_sets(datadir,
 
 
 @pytest.fixture(params=['static_kalman', 'dynamic_kalman',
-                        'raim_disable_swiftnav'])
+                        'raim_disabled_swiftnav'])
 def dgnss_filter_class(request):
   if request.param == "static_kalman":
     return filters.StaticKalmanFilter
   elif request.param == "dynamic_kalman":
     return filters.DynamicKalmanFilter
-  elif request.param == 'raim_disable_swiftnav':
-    pytest.skip("The swiftnav filter isn't working.")
+  elif request.param == 'raim_disabled_swiftnav':
+    pytest.skip("Swiftnav filter isn't passing all the tests yet.")
     return functools.partial(filters.SwiftNavDGNSSFilter,
                              disable_raim=True)
   else:
@@ -219,7 +219,7 @@ def dgnss_filter_class(request):
 
 @pytest.fixture()
 def null_filter():
-  mock_filter = mock.Mock(filters.common.DGNSSFilter)
+  mock_filter = mock.Mock(filters.dgnss_filter.DGNSSFilter)
   bl = pd.Series({'x': 0., 'y': 0., 'z': 0.})
   mock_filter.get_baseline.return_value = bl
   mock_filter.update.return_value = True

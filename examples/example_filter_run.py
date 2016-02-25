@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from gnss_analysis import filters
 from gnss_analysis import solution
 from gnss_analysis.io import simulate
+from gnss_analysis.evaluation.metrics import baseline_error
 
 if __name__ == "__main__":
   this_dir = os.path.dirname(sys.argv[0])
@@ -27,7 +28,7 @@ if __name__ == "__main__":
   # epoch.  Each solution consists of the observation_set
   # with additional fields corresponding to single point
   # and DGNSS positions.
-  solutions = list(solution.solution(obs_sets, dgnss_filter))
+  solutions = list(solution.solution(obs_sets, rover_pos=dgnss_filter))
   # we can then investigate the results
 
   def compute_baseline_error(soln):

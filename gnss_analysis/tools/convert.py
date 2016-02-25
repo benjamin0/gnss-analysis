@@ -1,14 +1,9 @@
 import os
 import sys
-import time
 import logging
 import argparse
 import itertools
 import progressbar
-import pandas as pd
-import numpy as np
-
-from sbp.client.loggers.json_logger import JSONLogIterator
 
 from gnss_analysis import filters
 from gnss_analysis import solution
@@ -45,40 +40,30 @@ def convert(args):
     raise ValueError("Expected the output path to end with either '.h5',"
                      " or '.hdf5'.")
 
-  cnt, obs_sets = common.get_observation_sets(args.input.name,
-                                              args.base,
-                                              args.navigation)
-  if cnt == 0:
-    raise ValueError("The specified inputs don't appear to have "
-                     " any observations.")
+  # load observation sets from disk
+  obs_sets = common.get_observation_sets(args.input,
+                                         args.base,
+                                         args.navigation,
+                                         max_epochs=args.n)
 
   # optionally add the satellite state to rover and base
   if args.calc_sat_state:
     obs_sets = add_satellite_state(obs_sets)
 
-  # if a number of observations was specified we take
-  # only the first n of them and update the total count
-  if args.n is not None:
-    obs_sets = (x for _, x in itertools.izip(range(args.n), obs_sets))
-    cnt = min(args.n, cnt)
-
-  logging.info("About to parse %d epochs of observations" % cnt)
-  cnt = max(cnt, 1)
-  bar = progressbar.ProgressBar(maxval=cnt)
-  obs_sets = bar(obs_sets)
-
   # optionally run a filter on the observations before saving.
-  if args.filter is not None:
-    logging.info("Running filter (%s) using the observations"
-                 % type(args.filter))
-    obs_sets = solution.solution(obs_sets, args.filter)
+  if args.filters is not None:
+    logging.info("Running filters: %s" % ', '.join(args.filters.keys()))
+    # instantiate the filters
+    args.filters = {k: v() for k, v in args.filters.iteritems()}
+    # then run them through the observation set
+    obs_sets = solution.solution(obs_sets, **args.filters)
 
-  logging.info("Writting to HDF5")
+  # store the results in HDF5
   hdf5.to_hdf5(obs_sets, args.output, mode=args.mode, subset=args.subset)
 
 
 def create_parser(parser):
-  parser.add_argument('input', type=argparse.FileType('r'),
+  parser.add_argument('input',
                       help='Specify the input file that contains the rover'
                            ' (and possibly base/navigation) observations.'
                            ' The file type is infered from the extension,'
@@ -100,7 +85,7 @@ def create_parser(parser):
                       help="If specified the satellite state is computed"
                            " prior to saving to HDF5.")
   parser.add_argument('--profile', default=False, action="store_true")
-  parser.add_argument("--filter", dest="filter_name",
+  parser.add_argument("--filters", dest="filter_names", nargs='*',
                       choices=filters.lookup.keys(),
                       default=None)
   parser.add_argument("--mode", default='w', choices=['w', 'a'],
@@ -124,8 +109,8 @@ filter before saving.
                                     % {'script_name': script_name})
   parser = create_parser(parser)
   args = parser.parse_args()
-  args.output = common.infer_output(args.output, args.input, args.filter_name)
-  args.filter = common.resolve_filters(args.filter_name)
+  args.output = common.infer_output(args.output, args.input)
+  args.filters = common.resolve_filters(args.filter_names)
 
   logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 

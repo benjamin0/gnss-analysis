@@ -1,9 +1,12 @@
+import copy
 import pytest
 import numpy as np
 
-from gnss_analysis import solution
+from gnss_analysis import solution, ephemeris
 from gnss_analysis import locations
+from gnss_analysis import filters
 
+import common
 
 @pytest.mark.slow
 @pytest.mark.regression
@@ -79,19 +82,23 @@ def test_eventually_gets_synthetic_baseline(synthetic_stationary_observations,
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_agrees_with_piksi_logs(piksi_roof, dgnss_filter_class):
+def test_agrees_with_piksi_logs(piksi_roof):
   """
   Tests for reasonable agreement with the piksi logs.  This is done
   by running dgnss_filter_class through the piksi_roof log and
   making sure the error at the end is less than twice the error
   of the piksi reported baselines.
   """
-  dgnss_filter = dgnss_filter_class(base_pos=locations.LEICA_ABSOLUTE)
 
-  for obs_set in solution.solution(piksi_roof, dgnss_filter):
+  spp = filters.spp.SinglePointPosition()
+  swiftnav_filter = filters.lookup['swiftnav'](base_pos=locations.LEICA_ABSOLUTE)
+
+  for obs_set in solution.solution(piksi_roof,
+                                   rover_spp=spp,
+                                   rover_pos=swiftnav_filter):
     # check that the single point positions match.
     np.testing.assert_allclose(obs_set['rover_spp_ecef'][['x', 'y', 'z']].values[0],
-                               obs_set['rover_pos'][['x', 'y', 'z']].values[0],
+                               obs_set['rover_spp'][['x', 'y', 'z']].values[0],
                                atol=0.2, rtol=1e-1)
     # if the python solver returned a non none baseline and
     # the piksi logged an rtk solution we check to see if the
@@ -137,10 +144,10 @@ def test_cors_baseline(cors_observation_sets, dgnss_filter_class, request):
   # sufficient number of observations.
   def eventually_close():
     for _, soln in zip(range(100), solution.solution(cors_observation_sets,
-                                                     dgnss_filter)):
-      bl = soln['rover_pos'][['baseline_x',
-                              'baseline_y',
-                              'baseline_z']].values
+                                                     baseline=dgnss_filter)):
+      bl = soln['baseline'][['baseline_x',
+                           'baseline_y',
+                           'baseline_z']].values
       if np.linalg.norm(bl - expected_baseline) <= 1.:
         return True
     return False
@@ -172,8 +179,8 @@ def test_multiband_cors_baseline(multignss_cors_35km_baseline, dgnss_filter_clas
   # If that never happens it returns False.
   def eventually_close():
     for _, soln in zip(range(100), solution.solution(multignss_cors_35km_baseline,
-                                                     dgnss_filter)):
-      bl = soln['rover_pos'][['baseline_x',
+                                                     baseline=dgnss_filter)):
+      bl = soln['baseline'][['baseline_x',
                               'baseline_y',
                               'baseline_z']].values
       if np.linalg.norm(bl - expected_baseline) <= 0.5:
@@ -181,3 +188,19 @@ def test_multiband_cors_baseline(multignss_cors_35km_baseline, dgnss_filter_clas
     return False
 
   assert eventually_close()
+
+
+def test_doesnt_mutate(dgnss_filter_class, synthetic_observation_set):
+  obs_set = copy.deepcopy(synthetic_observation_set)
+  obs_set['rover'] = ephemeris.add_satellite_state(obs_set['rover'],
+                                                   obs_set['ephemeris'])
+  obs_set['base'] = ephemeris.add_satellite_state(obs_set['base'],
+                                                   obs_set['ephemeris'])
+  obs_copy = copy.deepcopy(obs_set)
+  filter = dgnss_filter_class()
+  # make sure the update was successful, or we may be missing code
+  assert filter.update(obs_copy)
+  pos = filter.get_position(obs_copy)
+
+  # make sure the observation set wasn't mutated.
+  common.assert_observation_sets_equal(obs_copy, obs_set)
