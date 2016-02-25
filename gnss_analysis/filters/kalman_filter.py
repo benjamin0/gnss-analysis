@@ -390,8 +390,8 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
 
 class StaticKalmanFilter(KalmanFilter):
 
-  def __init__(self, sig_x=2., sig_z=0.01, sig_cp=0.02,
-               sig_pr=3., sig_init_p=5e5, *args, **kwdargs):
+  def __init__(self, sig_x=2., sig_z=10., sig_cp=0.02,
+               sig_pr=3., sig_init_p=5e8, *args, **kwdargs):
     """
     Initializes a Kalman Filter with a static process model with the option to
     specify observation and process noise.
@@ -486,10 +486,10 @@ class DynamicKalmanFilter(KalmanFilter):
 
   def __init__(self,
                sig_dynamics=1.,
-               sig_z=0.01,
+               sig_z=10.,
                sig_cp=0.02,
                sig_pr=3.,
-               sig_init_p=5e5,
+               sig_init_p=5e8,
                sig_init_v=10.,
                sig_init_a=0.1,
                correlation_time=10.,
