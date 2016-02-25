@@ -83,7 +83,7 @@ def mk_ephemeris(eph):
 
   kepler['toc'] = time_utils.datetime_to_tow(eph['toc'])
   # we assume L1 signals for the moment
-  band = np.asscalar(eph.get('band', 1))
+  band = eph.get('band', 1)
   if np.isnan(band):
     band = 1
   assert band == 1

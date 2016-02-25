@@ -716,6 +716,11 @@ def read_navigation_file(filelike):
     A generator that iterates over navigation sets
     (aka ephemerides) with one for each epoch.
   """
+  if filelike is None:
+    # this tuple indicates that a rinex file didn't have
+    # a navigation file.
+    return {}, None
+
   lines = iter_padded_lines(filelike)
   header = parse_header(lines)
   nav_parser = build_navigation_parser(header)
@@ -773,6 +778,5 @@ def infer_navigation_path(observation_path):
   if cnt == 1 and os.path.exists(possible_navigation_path):
     return possible_navigation_path
   else:
-    raise ValueError("Couldn't infer navigation path for %s"
-                     % observation_path)
+    return None
 

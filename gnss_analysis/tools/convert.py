@@ -6,6 +6,7 @@ import argparse
 import itertools
 import progressbar
 import pandas as pd
+import numpy as np
 
 from sbp.client.loggers.json_logger import JSONLogIterator
 
@@ -69,7 +70,7 @@ def convert(args):
     obs_sets = solution.solution(obs_sets, args.filter)
 
   logging.info("Writting to HDF5")
-  hdf5.to_hdf5(obs_sets, args.output)
+  hdf5.to_hdf5(obs_sets, args.output, mode=args.mode, subset=args.subset)
 
 
 def create_parser(parser):
@@ -85,7 +86,7 @@ def create_parser(parser):
   parser.add_argument('--navigation',
                       help='Optional source of navigation observations.',
                       default=None)
-  parser.add_argument('--output', type=argparse.FileType('w'), default=None,
+  parser.add_argument('--output', default=None,
                       help='Optional output path to use, default creates'
                            ' one from the input path and other arguments.')
   parser.add_argument("-n", type=int, default=None,
@@ -98,6 +99,12 @@ def create_parser(parser):
   parser.add_argument("--filter", dest="filter_name",
                       choices=filters.lookup.keys(),
                       default=None)
+  parser.add_argument("--mode", default='w', choices=['w', 'a'],
+                      help="The file mode with which to write to HDF5.")
+  parser.add_argument("--subset", nargs='*', default=None,
+                      help="Allows the user to specify which fields in the"
+                           " observation set will be written to file.  This"
+                           " makes it easier to mix piksi/cors observations.")
   return parser
 
 

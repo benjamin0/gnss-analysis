@@ -22,12 +22,12 @@ def _create_navigation_measurement(obs):
   assert 'pseudorange' in obs
   assert 'raw_pseudorange' in obs
   assert np.all(obs['constellation'] == 'GPS')
-  assert np.all(obs['band'] == 1)
+  assert np.all(obs['band'] == '1')
   assert isinstance(obs, pd.Series)
 
   lock_time = np.nan
   tot = gpstime.GpsTime(**time_utils.datetime_to_tow(obs['tot']))
-  sid = GNSSSignal(sat=obs.sat, code=0)
+  sid = GNSSSignal(sat=int(obs.sat), code=0)
   # stuff all our known observations into a NavigationMeasurement object.
   nm = NavigationMeasurement(raw_pseudorange=obs.raw_pseudorange,
                              pseudorange=obs.pseudorange,
@@ -254,18 +254,21 @@ def solution(obs_sets, dgnss_filter=None):
         can_compute_position(obs_set['base'])):
       obs_set['base'] = ephemeris.add_satellite_state(obs_set['base'],
                                                       obs_set['ephemeris'])
-      # Update the filter with the new obs_set
-      # TODO: if low-latency make propagated sdiffs
-      updated = dgnss_filter.update(obs_set)
-      # NOTE: at this point on the piksi baseline messages are output.
-      if updated and dgnss_filter.initialized:
-        baseline = dgnss_filter.get_baseline(obs_set)
-        if baseline is not None:
-          baseline.rename({k: 'baseline_%s' % k for k in baseline.index},
-                          inplace=True)
-          # upgrade to a DataFrame
-          baseline = pd.DataFrame([baseline], index=obs_set['rover_pos'].index)
-          # and join with the rover_pos
-          obs_set['rover_pos'] = obs_set['rover_pos'].join(baseline)
+      # we need to check this again in case the intersection of base
+      # satellites and available ephemerides is too small.
+      if can_compute_position(obs_set['base']):
+        # Update the filter with the new obs_set
+        updated = dgnss_filter.update(obs_set)
+        # NOTE: at this point on the piksi baseline messages are output.
+        if updated and dgnss_filter.initialized:
+          # TODO: handle low-latency mode
+          baseline = dgnss_filter.get_baseline(obs_set)
+          if baseline is not None:
+            baseline.rename({k: 'baseline_%s' % k for k in baseline.index},
+                            inplace=True)
+            # upgrade to a DataFrame
+            baseline = pd.DataFrame([baseline], index=obs_set['rover_pos'].index)
+            # and join with the rover_pos
+            obs_set['rover_pos'] = obs_set['rover_pos'].join(baseline)
     # NOTE: only now are observations sent from the piksi
     yield obs_set

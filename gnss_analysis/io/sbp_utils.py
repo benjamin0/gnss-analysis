@@ -52,14 +52,15 @@ def get_sat(msg):
     # the sbp interface changed and in some cases the
     # satellite id is held in msg.sid.sat.
     if hasattr(msg.sid, 'sat'):
-      return msg.sid.sat
+      sat = msg.sid.sat
     else:
-      return msg.sid
+      sat = msg.sid
   # does the msg have a prn attribute?
   elif hasattr(msg, 'prn'):
-    return msg.prn
+    sat = msg.prn
   else:
     raise AttributeError("msg does not contain a satellite id")
+  return '%.2d' % (sat + 1)
 
 
 def update_position(obs, msg, data, suffix, in_mm=False):
@@ -155,9 +156,12 @@ def observation_to_dataframe(msg, data):
            }
       return v
 
+  if not len(msg.obs):
+    return pd.DataFrame()
+
   # Combine into a dataframe.
   df = pd.DataFrame([extract_observations(o) for o in msg.obs])
-  common.normalize(df)
+  df = common.normalize(df)
   return df
 
 
@@ -201,7 +205,6 @@ def ephemeris_to_dataframe(msg, data):
     msg['toc'] = time_utils.tow_to_datetime(msg.pop('toc_wn'),
                                             msg.pop('toc_tow'))
     msg['constellation'] = 'GPS'
-    msg['band'] = np.nan
     eph = pd.DataFrame(msg, index=pd.Index([sat], name='sat'))
     return eph
 

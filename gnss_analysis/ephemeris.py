@@ -451,8 +451,8 @@ def add_satellite_state(obs, ephemerides=None, account_for_sat_error=True):
     assert obs.index.name == 'sid'
     assert ephemerides.index.name in ['sid', 'sat']
     # combine the base observations with available ephemeris
-    # the only variable we prefer from obs is time, so we
-    # drop that from ephemerides if it's available in both.
+    # the only variables we prefer from obs is time
+    # so we drop that from ephemerides if it's available in both.
     if 'time' in ephemerides and 'time' in obs:
       ephemerides.drop('time', axis=1, inplace=True)
     # join the two dataframes together, adding columns, but

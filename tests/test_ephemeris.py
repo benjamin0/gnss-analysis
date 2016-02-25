@@ -172,7 +172,6 @@ def test_add_satellite_state(ephemerides):
       if x.dtype.kind == 'M':
         diff = x - y
         if np.any(np.abs(diff) > np.timedelta64(1, 'ns')):
-          print "value for %s don't agree" % k
           return False
       elif x.dtype.kind == 'O':
         # string comparisons must be equal
@@ -182,7 +181,6 @@ def test_add_satellite_state(ephemerides):
         # otherwise for float value we look for values
         # that agree up to 5 decimals.
         if np.any(np.abs(diff) > 1e-5):
-          print "value for %s don't agree" % k
           return False
     return True
 

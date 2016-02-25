@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 
 
-def to_hdf5(obs_sets, output_path, strict=True,
+def to_hdf5(obs_sets, output_path, strict=True, mode='w',
+            subset=None,
             **kwdargs):
   """
   Takes an iterator over observation sets and serializes them to
@@ -56,7 +57,7 @@ def to_hdf5(obs_sets, output_path, strict=True,
 
   store_args = {'complevel': 5, 'complib': 'zlib'}
   store_args.update(kwdargs)
-  with pd.HDFStore(output_path, mode='w', **store_args) as hdf:
+  with pd.HDFStore(output_path, mode=mode, **store_args) as hdf:
     logging.info("Concatenating into DataFrames")
     def add_group(key):
       df = build_df(key, obs_sets)
@@ -82,6 +83,10 @@ def to_hdf5(obs_sets, output_path, strict=True,
     # the remove any of the info keys, those will be processesed sererately
     groups = [x for x in groups if not x.endswith('_info')]
     groups.pop(groups.index('epoch'))
+    if subset is not None:
+      groups = set(groups).intersection(subset)
+    if not len(groups):
+      logging.warn("No groups are being written.")
     # and write to file.
     [add_group(k) for k in groups]
 
