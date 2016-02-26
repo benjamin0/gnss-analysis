@@ -501,8 +501,7 @@ def build_observation_parser(header):
 
   def parser(lines):
     # grab the next `n_lines` lines and join them into one
-    joined = ''.join(lines.next() for i in range(n_lines))
-    joined = joined.replace('\n', '')
+    joined = ''.join([lines.next() for i in range(n_lines)])
     # then parse it into observations
     funcs = itertools.cycle([float_or_nan, int_or_zero, int_or_zero])
     obs = np.array([f(o) for f, o in zip(funcs, obs_parser(joined))])
@@ -763,7 +762,8 @@ def iter_padded_lines(file_or_path, pad=80):
   else:
     lines = iter(file_or_path)
 
-  return (('{: <%d}' % pad).format(l) for l in lines)
+  for l in lines:
+    yield ('{: <%d}' % pad).format(l.rstrip('\n'))
 
 
 def infer_navigation_path(observation_path):
