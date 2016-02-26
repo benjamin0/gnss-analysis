@@ -17,7 +17,8 @@ def count_rover_observation_messages(input_path):
     content = f.read()
   # find all message types that are observations and have a non zero
   # sender (which implies it's a rover observation).
-  matches = re.findall('\"sender\": [^0]{1,5} \"msg_type\": 67', content)
+  matches = re.findall('\"sender\": [^0]{1,5}.{2} \"msg_type\": 67', content)
+
   return len(matches)
 
 

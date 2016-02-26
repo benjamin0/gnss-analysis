@@ -48,6 +48,9 @@ def convert(args):
   cnt, obs_sets = common.get_observation_sets(args.input.name,
                                               args.base,
                                               args.navigation)
+  if cnt == 0:
+    raise ValueError("The specified inputs don't appear to have "
+                     " any observations.")
 
   # optionally add the satellite state to rover and base
   if args.calc_sat_state:
@@ -60,6 +63,7 @@ def convert(args):
     cnt = min(args.n, cnt)
 
   logging.info("About to parse %d epochs of observations" % cnt)
+  cnt = max(cnt, 1)
   bar = progressbar.ProgressBar(maxval=cnt)
   obs_sets = bar(obs_sets)
 
