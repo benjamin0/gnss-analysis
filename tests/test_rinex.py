@@ -2,6 +2,7 @@ import os
 import pytest
 import string
 import datetime
+import operator
 import numpy as np
 
 from gnss_analysis.io import rinex
@@ -109,6 +110,24 @@ def test_navigation(rinex_navigation):
     # This test should pass after four iterations, if not we fail
     if i > 10:
       assert False
+
+
+def test_navigation_when_out_of_order(datadir):
+  nav_file = datadir.join('rinex_211_examples/cebr049x45.16n').strpath
+  header, iter_nav = rinex.read_navigation_file(nav_file)
+
+  def get_unique_epoch(x):
+    uniq = np.unique(x['epoch'].values)
+    assert uniq.size == 1
+    return uniq[0]
+
+  navs = list(iter_nav)
+  # make sure the nav sets are increasing chronologically (despite
+  # being out of order in the file).
+  epochs = [get_unique_epoch(x) for x in navs]
+  assert np.all(np.diff(epochs) > 0)
+
+  assert epochs[-1] == np.datetime64('2016-02-18T16:00:00.000000000-0800')
 
 
 def test_observation(rinex_observation):
