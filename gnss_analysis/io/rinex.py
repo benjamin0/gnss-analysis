@@ -725,17 +725,15 @@ def read_navigation_file(filelike):
   header = parse_header(lines)
   nav_parser = build_navigation_parser(header)
 
-  def iter_navigations():
-    def iter_by_prn():
+  def iter_by_prn():
+    nav_message = nav_parser(lines)
+    while len(nav_message):
+      yield pd.Series(nav_message)
       nav_message = nav_parser(lines)
-      while len(nav_message):
-        yield pd.Series(nav_message)
-        nav_message = nav_parser(lines)
 
-    for t, grp in itertools.groupby(iter_by_prn(), key=lambda x: x['epoch']):
-      yield pd.DataFrame(list(grp)).set_index('sat')
+  nav_messages = pd.DataFrame(iter_by_prn()).set_index('sat')
 
-  return header, iter_navigations()
+  return header, (y for _, y in nav_messages.groupby('epoch'))
 
 
 def iter_padded_lines(file_or_path, pad=80):
