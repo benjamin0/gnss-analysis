@@ -2,7 +2,6 @@ import os
 import pytest
 import string
 import datetime
-import operator
 import numpy as np
 
 from gnss_analysis.io import rinex
@@ -130,7 +129,7 @@ def test_navigation_when_out_of_order(datadir):
   assert epochs[-1] == np.datetime64('2016-02-18T16:00:00.000000000-0800')
 
 
-def test_observation(rinex_observation):
+def test_observation_header(rinex_observation):
   # this will only work on a specific RINEX file.  Make sure we're using it
   assert os.path.basename(rinex_observation) == 'seat0320.16o'
   f = open(rinex_observation, 'r')
@@ -142,10 +141,31 @@ def test_observation(rinex_observation):
   assert header['y'] == -3637848.2430
   assert header['z'] == 4691079.2150
 
+
+@pytest.mark.parametrize('obs_file,date,sid,variable,value',
+                          # check a simple carrier phase parse
+                         [('short_baseline_cors/seat032/seat0320.16o',
+                           datetime.datetime(2016, 2, 1, 12, 0, 4),
+                           'GPS-02-1', 'carrier_phase', 126636838.718),
+                          # make sure multiline observations are properly read
+                          ('multignss_cors_L2C_35km_baseline/cebr049a00.16o',
+                           datetime.datetime(2016, 2, 18, 0, 0, 0),
+                           'GPS-27-2', 'lock', 0),
+                          # Check a pseudorange observation
+                          ('rinex_211_examples/nnor049a00.16o',
+                           datetime.datetime(2016, 2, 18, 0, 0, 0),
+                           'GPS-32-1', 'raw_pseudorange', 22869628.296),
+                          ])
+def test_observation_spot_test(datadir, obs_file, date, sid, variable, value):
+  """
+  Takes some known values from a RINEX observation file, and confirms they
+  were read properly
+  """
+  header, iter_obs = rinex.read_observation_file(datadir.join(obs_file).strpath)
   for i, obs in enumerate(iter_obs):
-    if np.any(obs['time'] == datetime.datetime(2016, 2, 1, 12, 0, 4)):
-      np.testing.assert_array_equal(obs.ix['GPS-02-1', 'carrier_phase'],
-                                    np.array(126636838.718))
+    if np.any(obs['time'] == date):
+      np.testing.assert_array_equal(obs.ix[sid, variable],
+                                    np.array(value))
       break
     # This test should pass after four iterations, if not we fail
     if i > 10:

@@ -157,12 +157,14 @@ def cors_short_baseline(datadir):
   base = datadir.join('short_baseline_cors/ssho032/ssho0320.16o').strpath
   return rinex_observation_sets(rover, nav, base)
 
+
 @pytest.fixture
 def multignss_cors_35km_baseline(datadir):
   rover = datadir.join('multignss_cors_L2C_35km_baseline/cebr049a00.16o').strpath
   nav = datadir.join('multignss_cors_L2C_35km_baseline/cebr049a00.16n').strpath
   base = datadir.join('multignss_cors_L2C_35km_baseline/vill049a00.16o').strpath
   return rinex_observation_sets(rover, nav, base)
+
 
 @pytest.fixture
 def rinex_210(datadir):
