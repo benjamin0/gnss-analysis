@@ -217,3 +217,16 @@ python gnss_analysis/tools/compare.py short_baseline_cors.hdf5 --filters static
 ```
 
 In addition to visual plots of the filter's performance you can compute summary statistics of one or more filters by using `python gnss_analysis/tools/compare.py stats`.
+
+# Downloading & Converting SITL data
+SITL datasets are stored in [S3](https://console.aws.amazon.com/s3/home?region=us-east-1#&bucket=estimation-sitl-data&prefix=multiband-datasets/).
+To download all datasets:
+```
+cd gnss_analysis/tools
+./download_sitl_data.sh
+```
+To convert a new CORS dataset and upload to S3:
+```
+cd gnss_analysis/tools
+./convert_sitl_data.sh -r "cebr" -b "vill" -d "049" -h "23" -m "00" -y "2016"
+```
