@@ -5,7 +5,6 @@ import progressbar
 import pandas as pd
 
 from gnss_analysis import filters
-from gnss_analysis import solution
 from gnss_analysis.io import sbp_utils, simulate, rinex
 
 
@@ -130,3 +129,30 @@ def resolve_filters(filter_name):
   else:
     all_filters = [resolve_filters(f) for f in filter_name]
     return dict(itertools.chain(*[x.iteritems() for x in all_filters]))
+
+
+def add_io_arguments(parser):
+
+  parser.add_argument('input',
+                      help='Specify the input file that contains the rover'
+                           ' (and possibly base/navigation) observations.'
+                           ' The file type is infered from the extension,'
+                           ' (SBP=".json", RINEX="*o", HDF5=[".h5", ".hdf5"])'
+                           ' and the appropriate parser is used.')
+  parser.add_argument('--base',
+                      help='Optional source of base observations.',
+                      default=None)
+  parser.add_argument('--navigation',
+                      help='Optional source of navigation observations.',
+                      default=None)
+  parser.add_argument('--output', default=None,
+                      help='Optional output path to use, default creates'
+                           ' one from the input path and other arguments.')
+  parser.add_argument("-n", type=int, default=None,
+                      help="The number of observation sets that will be read,"
+                           " default uses all available.")
+  parser.add_argument("--filters", dest="filter_names", nargs='*',
+                      choices=filters.lookup.keys(),
+                      default=None)
+
+  return parser

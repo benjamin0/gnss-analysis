@@ -9,7 +9,7 @@ def can_compute_position(obs):
   """
   # make sure we have enough rover observations
   if obs.empty or obs.shape[0] < 4:
-    logging.info("Waiting for 4 satellites, only %d found so far."
+    logging.warn("Waiting for 4 satellites, only %d found so far."
                  % obs.shape[0])
     return False
   return True

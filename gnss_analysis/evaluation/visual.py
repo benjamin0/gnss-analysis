@@ -3,6 +3,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def plot_metric(metrics, metric_name, metric_units, axis=None,
+                *args, **kwdargs):
+  """
+  Creates a single plot for a given metric.  The columns
+  will become independent lines, and the y axis will be labled
+  using the metric name and units.
+  """
+  if axis is None:
+    axis = plt.gca()
+  # TODO: for now we only show the epoch count, it'd be nice to have
+  #   an actual time axis, but resizing them isn't straight forward.
+  epochs = np.arange(metrics.index.size)
+  lines = axis.plot(epochs, metrics.values, *args, **kwdargs)
+  plt.legend(metrics.columns)
+  axis.set_ylabel("%s (%s)" % (metric_name, metric_units))
+  axis.set_xlabel('Epoch')
+  return lines
+
+
 def plot_metric_iterative(iter_metric, metric_name, metric_units,
                           draw_every=10, ax=None):
   """
@@ -30,20 +49,16 @@ def plot_metric_iterative(iter_metric, metric_name, metric_units,
       if len(epoch_buffer) == 1:
         # initialize the plot if this is the first iteration
         plt.ion()
-        lines = plt.plot(epoch_buffer,
-                         metric_buffer.values)
-        plt.legend(metric.columns)
-        plt.ylabel("%s (%s)" % (metric_name, metric_units))
-        plt.xlabel('Epoch')
+        lines = plot_metric(metric_buffer, metric_name, metric_units, axis=ax)
         plt.show()
         plt.pause(0.001)
       else:
         # otherwise update the plot by first resetting the data of the line plots
         for line, vals in zip(lines, metric_buffer.values.T):
-          line.set_data(epoch_buffer,
-                        vals)
+          line.set_data(epoch_buffer, vals)
         # then (possibly) adjusting the xlimits of the plot
         if epoch_buffer[-1] > ax.get_xlim()[1]:
+          # increase by the golden ratio
           ax.set_xlim([0, 1.61 * epoch_buffer[-1]])
         # then we look at the y limits which is a bit tricker since
         # we dont' know for sure that the values are monotonic and/or zero origin.
@@ -52,8 +67,8 @@ def plot_metric_iterative(iter_metric, metric_name, metric_units,
                             np.max(metric_buffer.values)])
         # then check if any the day falls outside the plot limits
         if cur_lim[0] <= ax.get_ylim()[0] or cur_lim[1] >= ax.get_ylim()[1]:
-          # if it does fall outside we increase the y axis by 60 percent in a
-          # way that keeps the data centered
+          # if it does fall outside we increase the y axis by the golden
+          # ratio in a way that keeps the data centered
           delta = 1.61 * (np.max(metric_buffer.values) - np.min(metric_buffer.values))
           mid = np.mean(cur_lim)
           new_lim = [mid - delta / 2, mid + delta / 2]

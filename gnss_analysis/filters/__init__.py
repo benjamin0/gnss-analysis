@@ -14,4 +14,6 @@ lookup = frozendict({'L1_static': functools.partial(StaticKalmanFilter,
                                                            single_band=False),
                      'L1_dynamic': functools.partial(DynamicKalmanFilter,
                                                      single_band=True),
+                     'multiband_dynamic': functools.partial(DynamicKalmanFilter,
+                                                     single_band=True),
                      'swiftnav': SwiftNavDGNSSFilter})
