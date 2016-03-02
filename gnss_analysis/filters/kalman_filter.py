@@ -7,9 +7,10 @@ from gnss_analysis import dgnss
 from gnss_analysis import constants as c
 
 from gnss_analysis.filters import common
+from gnss_analysis.filters import dgnss_filter
 
 
-class KalmanFilter(common.TimeMatchingDGNSSFilter):
+class KalmanFilter(dgnss_filter.TimeMatchingDGNSSFilter):
   """
   This version of an Extended Kalman Fiter is based largely off the paper:
 
@@ -334,6 +335,11 @@ class KalmanFilter(common.TimeMatchingDGNSSFilter):
     base_obs = self.get_obs_in_bands(base_obs)
     if not self.initialized:
       self.initialize_filter(rover_obs, base_obs)
+      # if we just initialized the filter we don't care if
+      # the lock changed, and don't want to trigger dropping
+      # satellites later.
+      base_obs.ix[:, 'lock'].values[:] = 0
+      rover_obs.ix[:, 'lock'].values[:] = 0
 
     # keep track of the current time of the filter
     self.cur_time = common.get_unique_value(rover_obs['time'])

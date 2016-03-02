@@ -1,13 +1,15 @@
 import os
 import logging
+import itertools
+import progressbar
 import pandas as pd
 
 from gnss_analysis import filters
 from gnss_analysis.io import sbp_utils, simulate, rinex
-from timeit import itertools
 
 
-def get_observation_sets(input_path, base_path=None, nav_path=None):
+def get_observation_sets(input_path, base_path=None, nav_path=None,
+                         max_epochs=None, show_progress=True):
   """
   Takes care of the logic required to determine which format an input
   file (and optional base and navigation files) are stored in.  Once
@@ -38,44 +40,70 @@ def get_observation_sets(input_path, base_path=None, nav_path=None):
     holds rover and (optionall) ephemeris and base fields.
   """
   if input_path.endswith('.json'):
+    # piksi observations
     if base_path is not None or nav_path is not None:
       raise NotImplementedError("The base and navigation arguments are not"
                                 " applicable when using an sbp log file.")
     cnt = sbp_utils.count_rover_observation_messages(input_path)
-    return cnt, simulate.simulate_from_log(input_path)
+    obs_sets = simulate.simulate_from_log(input_path)
 
   elif input_path.endswith('.hdf5'):
+    # HDF5 observations
     if base_path is not None or nav_path is not None:
-      # TODO: we could easily change this
+      # TODO: we could change this to accept pulling
+      #   base and ephemeris observations from a different
+      #   HDF5 file.
       raise NotImplementedError("The base and navigation arguments are not"
                                 " applicable when using an HDF5 file.")
 
     with pd.HDFStore(input_path, 'r') as store:
-      cnt = store['rover'].shape[0]
+      cnt = store['rover'].index.levels[0].size
 
     # return the observations sets from the HDF5 file
-    return cnt, simulate.simulate_from_hdf5(input_path)
+    obs_sets = simulate.simulate_from_hdf5(input_path)
 
   elif input_path.endswith('o'):
+    # RINEX observations
     # either use the explicitly provided nav path or try and infer it.
     nav_path = nav_path or rinex.infer_navigation_path(input_path)
     # If we want to show progress we read the whole file first, then
     # pass in an iterator over lines.
     # it's fine if base_path is None here.
     cnt = rinex.count_observations(input_path)
-    return cnt, simulate.simulate_from_rinex(input_path, nav_path, base_path)
+    obs_sets = simulate.simulate_from_rinex(input_path, nav_path, base_path)
+  else:
+    raise ValueError("Input path %s has an unknown extension." % input_path)
+
+  # if a number of observations was specified we take
+  # only the first n of them and update the total count
+  if max_epochs is not None:
+    obs_sets = (x for _, x in itertools.izip(xrange(max_epochs), obs_sets))
+    cnt = min(max_epochs, cnt)
+
+  # optionally displays a progress bar in stdout when iterating
+  # through the obs_sets generator
+  if show_progress:
+    logging.info("About to parse %d epochs of observations" % cnt)
+    bar = progressbar.ProgressBar(maxval=cnt)
+    obs_sets = bar(obs_sets)
+  return obs_sets
 
 
-def infer_output(output, input, filter_name):
+def infer_output(output, input):
+  """
+  A utility function that determines the output path by
+  either extracting it from the 'output' argument (which
+  can be a string or argparse.FileType).  If output is None
+  a default output path is inferred from the input path.
+  """
   # if the output file was not provided we infer it from the input
   if output is None:
     # split into directory and basename
-    dirname = os.path.dirname(input.name)
-    basename = os.path.basename(input.name)
-    # add the filter name to the output file if possible
-    basename = '_'.join(filter(None, [filter_name, basename]))
+    dirname = os.path.dirname(input)
+    basename = os.path.basename(input)
     # reassmble the output name
     output_name = os.path.join(dirname, '%s.hdf5' % basename)
+    logging.info("Using default output path: %s" % output_name)
   else:
     # we only need the output path if it was specified.
     output_name = getattr(output, 'name', output)
@@ -101,3 +129,30 @@ def resolve_filters(filter_name):
   else:
     all_filters = [resolve_filters(f) for f in filter_name]
     return dict(itertools.chain(*[x.iteritems() for x in all_filters]))
+
+
+def add_io_arguments(parser):
+
+  parser.add_argument('input',
+                      help='Specify the input file that contains the rover'
+                           ' (and possibly base/navigation) observations.'
+                           ' The file type is infered from the extension,'
+                           ' (SBP=".json", RINEX="*o", HDF5=[".h5", ".hdf5"])'
+                           ' and the appropriate parser is used.')
+  parser.add_argument('--base',
+                      help='Optional source of base observations.',
+                      default=None)
+  parser.add_argument('--navigation',
+                      help='Optional source of navigation observations.',
+                      default=None)
+  parser.add_argument('--output', default=None,
+                      help='Optional output path to use, default creates'
+                           ' one from the input path and other arguments.')
+  parser.add_argument("-n", type=int, default=None,
+                      help="The number of observation sets that will be read,"
+                           " default uses all available.")
+  parser.add_argument("--filters", dest="filter_names", nargs='*',
+                      choices=filters.lookup.keys(),
+                      default=None)
+
+  return parser

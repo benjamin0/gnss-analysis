@@ -1,17 +1,19 @@
 import functools
 
 from frozendict import frozendict
-from .common import TimeMatchingDGNSSFilter
 
 from gnss_analysis.filters.swiftnav_filter import SwiftNavDGNSSFilter
 from gnss_analysis.filters.kalman_filter import DynamicKalmanFilter
 from gnss_analysis.filters.kalman_filter import StaticKalmanFilter
 
 # make this lookup table immutable
-lookup = frozendict({'L1-static': functools.partial(StaticKalmanFilter,
+# the lookup table should not include an operator symbols (such as '-')
+lookup = frozendict({'L1_static': functools.partial(StaticKalmanFilter,
                                                     single_band=True),
-                     'multiband-static': functools.partial(StaticKalmanFilter,
+                     'multiband_static': functools.partial(StaticKalmanFilter,
                                                            single_band=False),
-                     'static': StaticKalmanFilter,
-                     'dynamic': DynamicKalmanFilter,
+                     'L1_dynamic': functools.partial(DynamicKalmanFilter,
+                                                     single_band=True),
+                     'multiband_dynamic': functools.partial(DynamicKalmanFilter,
+                                                     single_band=True),
                      'swiftnav': SwiftNavDGNSSFilter})

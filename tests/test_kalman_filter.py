@@ -81,7 +81,7 @@ def test_kalman_drops_sat(synthetic_stationary_observations,
     np.testing.assert_allclose(expected_bl, simul_bl, atol=1e-2)
 
 def test_kalman_change_reference_sat(synthetic_stationary_observations,
-                                     dgnss_filter_class, band):
+                                     kalman_filter_class, band):
   """
   This runs through several epochs of data and performs a
   few sanity checks.  In particular it checks that changing
@@ -93,9 +93,9 @@ def test_kalman_change_reference_sat(synthetic_stationary_observations,
   epochs = [x for _, x in zip(range(10),
                               synthetic_stationary_observations)]
 
-  expected_filter = dgnss_filter_class()
-  actual_filter = dgnss_filter_class()
-  roundtrip_filter = dgnss_filter_class()
+  expected_filter = kalman_filter_class()
+  actual_filter = kalman_filter_class()
+  roundtrip_filter = kalman_filter_class()
 
   for epoch in epochs:
     expected_filter.update(epoch)

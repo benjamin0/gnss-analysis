@@ -18,16 +18,18 @@ def input_observations(request, datadir):
     return get_path('partial_serial-link-20151221-142236.log.json')
 
 
-@pytest.fixture(params=['default', 'partial', 'filter', 'add_state'])
+@pytest.fixture(params=['default', 'partial', 'filter', 'filters', 'add_state'])
 def options(request):
   if request.param == 'default':
     return ''
   elif request.param == 'partial':
-    return '-n 10'
+    return '-n 3'
   elif request.param == 'filter':
-    return '-n 10 --filter static'
+    return '-n 3 --filters L1_static'
+  elif request.param == 'filters':
+    return '-n 3 --filters L1_static L1_dynamic'
   elif request.param == 'add_state':
-    return '-n 10 --calc-sat-state'
+    return '-n 3 --calc-sat-state'
 
 
 def test_converts(datadir, input_observations, options):
@@ -38,8 +40,8 @@ def test_converts(datadir, input_observations, options):
   full_args = ' '.join([input_observations, options])
   args = parser.parse_args(full_args.split())
 
-  args.output = common.infer_output(args.output, args.input, args.filter_name)
-  args.filter = common.resolve_filters(args.filter_name)
+  args.output = common.infer_output(args.output, args.input)
+  args.filters = common.resolve_filters(args.filter_names)
 
   convert.convert(args)
 

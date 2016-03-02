@@ -165,14 +165,12 @@ the performance of a single (or multiple) filters.  This is done by specifiying 
 input set of observations (in much the same way as `convert.py`) and a filter name:
 
 ```
-$ python gnss_analysis/tools/compare.py --help
-usage: compare.py [-h] [--base BASE] [--navigation NAVIGATION]
-                  [--output OUTPUT] [-n N] [--profile] --filters
-                  [{static,dynamic,L1-static,swiftnav} [{static,dynamic,L1-static,swiftnav} ...]]
-                  [--draw-every DRAW_EVERY]
-                  input
-
-compare.py A tool for comparing filters.
+$ python gnss_analysis/tools/compare.py plot --help
+usage: compare.py plot [-h] [--base BASE] [--navigation NAVIGATION]
+                       [--output OUTPUT] [-n N]
+                       [--filters [{L1_dynamic,multiband_dynamic,multiband_static,swiftnav,L1_static} [{L1_dynamic,multiband_dynamic,multiband_static,swiftnav,L1_static} ...]]]
+                       [--draw-every DRAW_EVERY]
+                       input
 
 positional arguments:
   input                 Specify the input file that contains the rover (and
@@ -190,12 +188,13 @@ optional arguments:
                         the input path and other arguments.
   -n N                  The number of observation sets that will be read,
                         default uses all available.
-  --profile
-  --filters [{static,dynamic,L1-static,swiftnav} [{static,dynamic,L1-static,swiftnav} ...]]
+  --filters [{L1_dynamic,multiband_dynamic,multiband_static,swiftnav,L1_static} [{L1_dynamic,multiband_dynamic,multiband_static,swiftnav,L1_static} ...]]
   --draw-every DRAW_EVERY
                         The number of epochs between plot refreshes,
                         refreshing every iteration (1) significantly slows
-                        down the script. (default=10)
+                        down the script. A value of zero (or less) will wait
+                        until all observations were processed before creating
+                        the plot. Default is 10
 ```
 
 For example you can run the static Kalman filter on the example data set by running,
@@ -216,3 +215,5 @@ Then run the filter using the HDF5 file.
 ```
 python gnss_analysis/tools/compare.py short_baseline_cors.hdf5 --filters static
 ```
+
+In addition to visual plots of the filter's performance you can compute summary statistics of one or more filters by using `python gnss_analysis/tools/compare.py stats`.

@@ -20,22 +20,25 @@ def assert_observation_sets_equal(expected, actual):
   Throws an assertion error if the two differ.
   """
   for k in expected.keys():
-    if k.endswith('_info'):
-      info_name = '%s_info' % k
-      if info_name in expected:
-        assert_info_dict_equal(expected[info_name], actual[info_name])
+    try:
+      if k.endswith('_info'):
+        info_name = '%s_info' % k
+        if info_name in expected:
+          assert_info_dict_equal(expected[info_name], actual[info_name])
+        else:
+          assert info_name not in actual
       else:
-        assert info_name not in actual
-    else:
-      if isinstance(expected[k], pd.DataFrame):
-        # sometimes the columns are shuffled, which we don't care about,
-        # so first we make sure the column sets are the same.  Note
-        # that we only care if all the expected values are contained
-        # in the actual ones.  If actual contains some extra columns
-        # that is considered OK.
-        assert not expected[k].columns.difference(actual[k].columns).size
-        # then we reorder and compare
-        pd.util.testing.assert_frame_equal(expected[k],
-                                           actual[k][expected[k].columns])
-      else:
-        np.testing.assert_array_equal(expected[k], actual[k])
+        if isinstance(expected[k], pd.DataFrame):
+          # sometimes the columns are shuffled, which we don't care about,
+          # so first we make sure the column sets are the same.  Note
+          # that we only care if all the expected values are contained
+          # in the actual ones.  If actual contains some extra columns
+          # that is considered OK.
+          assert not expected[k].columns.difference(actual[k].columns).size
+          # then we reorder and compare
+          pd.util.testing.assert_frame_equal(expected[k],
+                                             actual[k][expected[k].columns])
+        else:
+          np.testing.assert_array_equal(expected[k], actual[k])
+    except AssertionError, e:
+      raise AssertionError('In field %s: %s' % (k, e.msg))
