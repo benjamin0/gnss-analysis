@@ -197,15 +197,16 @@ optional arguments:
                         the plot. Default is 10
 ```
 
-For example you can run the static Kalman filter on the example data set by running,
+For example, you can run the static (multiband and L1) Kalman filter on the example data set by running,
 ```
 python gnss_analysis/tools/compare.py tests/test_data/short_baseline_cors/seat032/seat0320.16o \
   --base tests/test_data/short_baseline_cors/ssho032/ssho0320.16o \
-  --filters static
+  --filters multiband_static L1_static
 ```
 
 This should be sufficiently fast for a quick comparison, but you'll find most of the runtime
 is spent parsing the observation file.  To sped up the comparison you could first convert to HDF5,
+(if no navigation file is specified, it will be inferred.)
 ```
 python gnss_analysis/tools/convert.py tests/test_data/short_baseline_cors/seat032/seat0320.16o \
   --base tests/test_data/short_baseline_cors/ssho032/ssho0320.16o \

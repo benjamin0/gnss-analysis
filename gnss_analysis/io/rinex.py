@@ -39,7 +39,7 @@ def count_observations(rinex_observation_file):
 def split_every(n, iterable):
   """
   Breaks an iterable into chunks of size n.
-  
+
   Parameters
   ----------
   n : int
@@ -49,7 +49,7 @@ def split_every(n, iterable):
     the end of the iterable is reached and the remainder is not
     size n (ie, if the overall length is not a multiple of the
     chunk size) an exception is raised.
-  
+
   Returns
   -------
   chunks : iterable
@@ -70,7 +70,7 @@ def build_parser(format_strings):
   """
   Takes a format string (or list of format strings) and
   returns a function which will parse a line into a tupple.
-  
+
   See struct.Struct
   """
   # if format_strings is already a string we simply use it
@@ -81,15 +81,15 @@ def build_parser(format_strings):
 
 
 def apply_parser(parser, field_names, funcs, line):
-  """  
+  """
   This takes a parser that splits a line into len(field_names)
   fields.  It then applies a conversion function to each of
   the corresponding fields and creates a dictionary indexed
   by the field names.
-  
+
   This is equivalent to:
     {k: f(v) for k, v, f in zip(field_names, parser(line), funcs)
-  
+
   with a few sanity checks.
   """
   # split the line into what we expect should be len(field_name) chunks
@@ -108,7 +108,7 @@ def parse_line(fields, line):
   A utility function that performs the most common form of line parsing.
   This takes a list of tuples (fields) that defines how a line should
   be parsed, builds the parser and applies it to line.
-  
+
   Parameters:
   -----------
   fields : iterable of tuples
@@ -122,7 +122,7 @@ def parse_line(fields, line):
   line : string
     A single line that should be at least as long as the sum of the
     field format strings.
-    
+
   Returns
   -------
   field_dict : dict
@@ -138,7 +138,7 @@ def parse_version(x):
   """
   Parsers the version line in a RINEX header returning a
   dictionary with fields 'version', 'file_type' and 'sat_system'
-    
+
  |RINEX VERSION / TYPE| - Format version (2.11)                  | F9.2,11X,  |
  |                    | - File type ('O' for Observation Data)   |   A1,19X,  |
  |                    | - Satellite System: blank or 'G': GPS    |   A1,19X   |
@@ -155,7 +155,7 @@ def parse_types_of_observ(x):
   """
   Parses the types of observations field in a header.  The names are converted
   from RINEX single characters to more readable strings (pseudorange etc ...)
-  
+
   |# / TYPES OF OBSERV | - Number of different observation types  |     I6,    |
   |                    |   stored in the file                     |            |
   |                    | - Observation types                      |            |
@@ -197,7 +197,7 @@ def parse_types_of_observ(x):
 def parse_almanac(x):
   """
   Parses almanac coefficients from a navigation message header file.
-  
+
  +--------------------+------------------------------------------+------------+
 *|DELTA-UTC: A0,A1,T,W| Almanac parameters to compute time in UTC| 3X,2D19.12,|*
  |                    | (page 18 of subframe 4)                  |     2I9    |
@@ -310,7 +310,7 @@ def float_or_nan(x):
   """
   This will convert a string representation of a float into
   the corresponding float, or into a nan if the string is empty.
-  
+
   This also takes care of converting RINEX conventions for scientific
   notation ('1D-3') to the python notation ('1e-3').
   """
@@ -328,14 +328,14 @@ def convert_to_datetime(dictlike):
   Converts time that is represented using year, month, day, hour, min, sec
   attributes to a single datetime object.  The result is stored in a new
   attribute ('time') and the others are all removed from the dict.
-  
+
   Parameters
   ----------
   dictlike : dict
     A dictionary like object (must have pop and get/set attr methods) that
     contains a year, month, day, hour, min, sec representation of time.
     All values (except the seconds) should be integers.
-    
+
   Returns
     None (the dict is modified in place)
   """
@@ -522,7 +522,7 @@ def build_navigation_parser(header):
   Parameters
   ----------
   None
-  
+
   Returns
   ----------
   parser : function
@@ -654,15 +654,15 @@ def read_observation_file(filelike):
   """
   Takes a file like object that iterates over lines from a RINEX
   observaiton file and returns the header and an observations set
-  generator.  This is done by iteratively parsing and yielding 
+  generator.  This is done by iteratively parsing and yielding
   DataFrames consisting of the observations at each epoch.
-  
+
   Parameters
   ----------
   filelike : file-like
     A file like object whose only real requirement is that it
     is an iterable of lines.
-    
+
   Returns
   --------
   header : dict
@@ -701,12 +701,12 @@ def read_navigation_file(filelike):
   navigation file and returns the header information and a generator
   of observations sets.  This is done by iteratively parsing and yielding
   DataFrames consisting of the ephemerides at each epoch.
-  
+
   ----------
   filelike : file-like
     A file like object whose only real requirement is that it
     is an iterable of lines.
-    
+
   Returns
   --------
   header : dict
@@ -740,7 +740,7 @@ def iter_padded_lines(file_or_path, pad=80):
   Takes a path to a file or a file-like object and returns
   an iterator over the lines that pads the lines to ensure they
   are at least `pad` characters long.
-  
+
   Parameters
   ----------
   file_or_path : string or iterable
@@ -749,7 +749,7 @@ def iter_padded_lines(file_or_path, pad=80):
     iterated over to produce a new generator of padded lines.
   pad : int (optional)
     The minimum length of a line in characters.
-    
+
   Returns
   ---------
   lines : generator
@@ -774,6 +774,7 @@ def infer_navigation_path(observation_path):
   """
   possible_navigation_path, cnt = re.subn('o$', 'n', observation_path)
   if cnt == 1 and os.path.exists(possible_navigation_path):
+    logging.info('Found navigation file: %s' % possible_navigation_path)
     return possible_navigation_path
   else:
     return None
